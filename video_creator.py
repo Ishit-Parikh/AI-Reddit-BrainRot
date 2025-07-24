@@ -1,14 +1,30 @@
 """
-video_creator.py
-Handles video creation, editing, and speed modification.
+video_creator.py (Enhanced with speed factor tracking)
+Handles video creation, editing, speed modification, and saves speed info for transcription sync.
 """
 import os
+import json
 import random
 import subprocess
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 
 from utils import get_audio_duration
 from video_utils import get_all_video_files, pick_non_repeating_videos
+
+
+def save_speed_info(output_folder: str, original_duration: float, final_duration: float, speed_factor: float):
+    """Save speed information for transcription synchronization."""
+    speed_info = {
+        'original_audio_duration': original_duration,
+        'final_video_duration': final_duration,
+        'speed_factor': speed_factor
+    }
+    
+    speed_info_file = os.path.join(output_folder, "speed_info.json")
+    with open(speed_info_file, 'w') as f:
+        json.dump(speed_info, f, indent=2)
+    
+    print(f"💾 Speed info saved: {speed_factor:.2f}x")
 
 
 def get_speedup_factor(duration_seconds: float) -> float:
@@ -107,7 +123,7 @@ def create_video_with_audio(output_folder: str):
         final_clip.write_videofile(normal_output, codec="libx264", audio_codec="aac", 
                                    fps=60, verbose=False, logger=None)
         
-        # Apply duration-based speed with VAAPI
+        # Apply duration-based speed with VAAPI and save speed info
         _apply_duration_based_speed_vaapi(normal_output, output_folder, audio_duration)
         
         # Close all clips
@@ -134,11 +150,14 @@ def _apply_duration_based_speed_vaapi(normal_output: str, output_folder: str, du
     print(f"Video duration: {duration_seconds:.2f}s")
     print(f"Applying {speed_factor:.2f}x speed based on duration rules using VAAPI...")
     
-    # If no speedup needed, just rename the file
+    # If no speedup needed, just rename the file and save speed info
     if speed_factor == 1.0:
         sped_up_output = os.path.join(output_folder, "final_output.mp4")
         os.rename(normal_output, sped_up_output)
-        print(f"✓ No speedup applied (≤60s video): {sped_up_output}")
+        print(f"✓ No speedup applied (≤90s video): {sped_up_output}")
+        
+        # Save speed info even for 1x speed
+        save_speed_info(output_folder, duration_seconds, duration_seconds, 1.0)
         return
     
     # Use ffmpeg to speed up the video with VAAPI
@@ -174,6 +193,11 @@ def _apply_duration_based_speed_vaapi(normal_output: str, output_folder: str, du
         
         if result.returncode == 0:
             print(f"✓ Video created with {speed_factor:.2f}x speed using VAAPI: {sped_up_output}")
+            
+            # Calculate final video duration and save speed info
+            final_duration = duration_seconds / speed_factor
+            save_speed_info(output_folder, duration_seconds, final_duration, speed_factor)
+            
             # Remove the normal speed video to save space
             if os.path.exists(normal_output):
                 os.remove(normal_output)
@@ -183,47 +207,51 @@ def _apply_duration_based_speed_vaapi(normal_output: str, output_folder: str, du
                 print(f"VAAPI error: {result.stderr}")
                 
             # Try different VAAPI device (renderD129)
-            if _try_alternative_vaapi_device(normal_output, output_folder, speed_factor):
+            if _try_alternative_vaapi_device(normal_output, output_folder, speed_factor, duration_seconds):
                 return
                 
             # If VAAPI fails, try CPU fallback
             print("Trying CPU fallback...")
-            if _apply_duration_based_speed_cpu_fallback(normal_output, output_folder, speed_factor):
+            if _apply_duration_based_speed_cpu_fallback(normal_output, output_folder, speed_factor, duration_seconds):
                 return
                 
             # If both fail, rename normal speed as final output
             if os.path.exists(normal_output):
                 os.rename(normal_output, sped_up_output)
+                save_speed_info(output_folder, duration_seconds, duration_seconds, 1.0)
                 
     except subprocess.TimeoutExpired:
         print("✗ VAAPI encoding timed out after 2 minutes.")
         print("Falling back to CPU encoding...")
         # Try CPU fallback
-        if _apply_duration_based_speed_cpu_fallback(normal_output, output_folder, speed_factor):
+        if _apply_duration_based_speed_cpu_fallback(normal_output, output_folder, speed_factor, duration_seconds):
             return
         print("Keeping normal speed video as final output.")
         if os.path.exists(normal_output):
             os.rename(normal_output, sped_up_output)
+            save_speed_info(output_folder, duration_seconds, duration_seconds, 1.0)
             
     except FileNotFoundError:
         print("✗ FFmpeg not found. Please make sure FFmpeg is installed and in your PATH.")
         print("Keeping normal speed video as final output.")
         if os.path.exists(normal_output):
             os.rename(normal_output, sped_up_output)
+            save_speed_info(output_folder, duration_seconds, duration_seconds, 1.0)
             
     except Exception as e:
         print(f"✗ Unexpected error during VAAPI encoding: {e}")
         print("Trying CPU fallback...")
-        if _apply_duration_based_speed_cpu_fallback(normal_output, output_folder, speed_factor):
+        if _apply_duration_based_speed_cpu_fallback(normal_output, output_folder, speed_factor, duration_seconds):
             return
         print("Keeping normal speed video as final output.")
         if os.path.exists(normal_output):
             os.rename(normal_output, sped_up_output)
+            save_speed_info(output_folder, duration_seconds, duration_seconds, 1.0)
     
     print(f"Final video: {sped_up_output}")
 
 
-def _try_alternative_vaapi_device(normal_output: str, output_folder: str, speed_factor: float):
+def _try_alternative_vaapi_device(normal_output: str, output_folder: str, speed_factor: float, original_duration: float):
     """Try alternative VAAPI device (renderD129) if renderD128 fails."""
     print("Trying alternative VAAPI device (renderD129)...")
     
@@ -256,6 +284,11 @@ def _try_alternative_vaapi_device(normal_output: str, output_folder: str, speed_
         
         if result.returncode == 0:
             print(f"✓ Alternative VAAPI device successful: {speed_factor:.2f}x speed applied")
+            
+            # Save speed info
+            final_duration = original_duration / speed_factor
+            save_speed_info(output_folder, original_duration, final_duration, speed_factor)
+            
             if os.path.exists(normal_output):
                 os.remove(normal_output)
             return True
@@ -270,7 +303,7 @@ def _try_alternative_vaapi_device(normal_output: str, output_folder: str, speed_
         return False
 
 
-def _apply_duration_based_speed_cpu_fallback(normal_output: str, output_folder: str, speed_factor: float):
+def _apply_duration_based_speed_cpu_fallback(normal_output: str, output_folder: str, speed_factor: float, original_duration: float):
     """CPU fallback for when hardware encoding fails."""
     print("Using CPU encoding as fallback...")
     
@@ -302,6 +335,11 @@ def _apply_duration_based_speed_cpu_fallback(normal_output: str, output_folder: 
         
         if result.returncode == 0:
             print(f"✓ CPU fallback successful: {speed_factor:.2f}x speed applied")
+            
+            # Save speed info
+            final_duration = original_duration / speed_factor
+            save_speed_info(output_folder, original_duration, final_duration, speed_factor)
+            
             if os.path.exists(normal_output):
                 os.remove(normal_output)
             return True
@@ -314,51 +352,3 @@ def _apply_duration_based_speed_cpu_fallback(normal_output: str, output_folder: 
     except Exception as e:
         print(f"✗ CPU fallback error: {e}")
         return False
-    
-    print(f"Final video: {sped_up_output}")
-
-
-def _apply_duration_based_speed_moviepy(normal_output: str, output_folder: str, duration_seconds: float):
-    """Alternative method using MoviePy for speed changes (slower but more reliable)."""
-    speed_factor = get_speedup_factor(duration_seconds)
-    print(f"Video duration: {duration_seconds:.2f}s")
-    print(f"Applying {speed_factor:.2f}x speed using MoviePy...")
-    
-    sped_up_output = os.path.join(output_folder, "final_output.mp4")
-    
-    # If no speedup needed, just rename the file
-    if speed_factor == 1.0:
-        os.rename(normal_output, sped_up_output)
-        print(f"✓ No speedup applied (≤60s video): {sped_up_output}")
-        return
-    
-    try:
-        # Load the video and apply speed change
-        clip = VideoFileClip(normal_output)
-        sped_clip = clip.fx(lambda gf: gf.speedx(speed_factor))
-        
-        # Write the sped up video
-        sped_clip.write_videofile(
-            sped_up_output,
-            codec="libx264",
-            audio_codec="aac",
-            fps=60,
-            verbose=False,
-            logger=None
-        )
-        
-        # Clean up
-        clip.close()
-        sped_clip.close()
-        
-        # Remove normal speed video
-        if os.path.exists(normal_output):
-            os.remove(normal_output)
-            
-        print(f"✓ Video created with {speed_factor:.2f}x speed using MoviePy: {sped_up_output}")
-        
-    except Exception as e:
-        print(f"✗ MoviePy speed change failed: {e}")
-        print("Keeping normal speed video as final output.")
-        if os.path.exists(normal_output):
-            os.rename(normal_output, sped_up_output)

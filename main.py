@@ -1,7 +1,7 @@
 """
 main.py
-Updated main execution script for bulk story generation first, then audio/video processing.
-Uses Official OpenAI API primary with DeepSeek and LMStudio fallback.
+Updated main execution script with integrated transcription functionality.
+Pipeline: Stories → Audio → Video → Transcription → Subtitled Video (optional)
 """
 import time
 import os
@@ -12,6 +12,10 @@ import traceback
 from text_generator import generate_all_stories_bulk
 from audio_generator import generate_audio_from_story
 from video_creator import create_video_with_audio
+from transcription_integration import (
+    process_transcription_bulk, 
+    add_transcription_to_single_story_pipeline
+)
 
 
 def get_custom_titles(num_runs):
@@ -38,16 +42,25 @@ def get_custom_titles(num_runs):
     return custom_titles
 
 
-def process_audio_for_all_stories(stories_data):
-    """
-    Process audio generation for all stories.
+def get_transcription_preferences():
+    """Get user preferences for transcription options."""
+    print("\n🎤 Transcription Options:")
+    print("1. Generate SRT subtitles only")
+    print("2. Generate SRT subtitles + videos with embedded subtitles")
+    print("3. Skip transcription")
     
-    Args:
-        stories_data (list): List of tuples (title, story, output_folder)
-        
-    Returns:
-        list: List of tuples (title, story, output_folder) for successful audio generations
-    """
+    choice = input("\nChoose transcription option (1, 2, or 3): ").strip()
+    
+    if choice == "1":
+        return True, False  # transcribe, don't embed
+    elif choice == "2":
+        return True, True   # transcribe and embed
+    else:
+        return False, False # skip transcription
+
+
+def process_audio_for_all_stories(stories_data):
+    """Process audio generation for all stories."""
     print(f"\n{'='*50}")
     print(f"🎵 BULK AUDIO GENERATION PHASE")
     print(f"Processing audio for {len(stories_data)} stories...")
@@ -76,15 +89,7 @@ def process_audio_for_all_stories(stories_data):
 
 
 def process_video_for_all_stories(stories_data):
-    """
-    Process video creation for all stories.
-    
-    Args:
-        stories_data (list): List of tuples (title, story, output_folder)
-        
-    Returns:
-        list: List of tuples (title, story, output_folder) for successful video creations
-    """
+    """Process video creation for all stories."""
     print(f"\n{'='*50}")
     print(f"🎬 BULK VIDEO CREATION PHASE")
     print(f"Processing videos for {len(stories_data)} stories...")
@@ -112,21 +117,27 @@ def process_video_for_all_stories(stories_data):
     return successful_videos
 
 
-def run_bulk_pipeline(num_runs: int, custom_titles: list = None):
+def run_bulk_pipeline(num_runs: int, custom_titles: list = None, enable_transcription: bool = True, create_subtitled_videos: bool = False):
     """
-    Execute the complete bulk pipeline: Stories → Audio → Video.
+    Execute the complete bulk pipeline: Stories → Audio → Video → Transcription.
     
     Args:
         num_runs (int): Number of stories to process
         custom_titles (list, optional): List of custom titles to use
+        enable_transcription (bool): Whether to generate transcriptions
+        create_subtitled_videos (bool): Whether to create videos with embedded subtitles
         
     Returns:
         dict: Summary of results for each phase
     """
     print(f"\n{'='*60}")
-    print(f"🚀 STARTING BULK CONTENT GENERATION PIPELINE")
-    print(f"Target: {num_runs} complete stories with audio and video")
-    print(f"{'='*60}")
+    print(f"🚀 STARTING ENHANCED BULK CONTENT GENERATION PIPELINE")
+    print(f"Target: {num_runs} complete stories with audio, video", end="")
+    if enable_transcription:
+        print(", and transcription", end="")
+        if create_subtitled_videos:
+            print(" + subtitled videos", end="")
+    print(f"\n{'='*60}")
     
     # Phase 1: Generate all stories
     stories_data = generate_all_stories_bulk(num_runs, custom_titles)
@@ -134,9 +145,7 @@ def run_bulk_pipeline(num_runs: int, custom_titles: list = None):
     if not stories_data:
         print("❌ No stories were generated successfully. Aborting pipeline.")
         return {
-            'stories': 0,
-            'audio': 0,
-            'videos': 0,
+            'stories': 0, 'audio': 0, 'videos': 0, 'transcriptions': 0,
             'total_requested': num_runs
         }
     
@@ -146,29 +155,35 @@ def run_bulk_pipeline(num_runs: int, custom_titles: list = None):
     if not audio_data:
         print("❌ No audio files were generated successfully. Aborting video creation.")
         return {
-            'stories': len(stories_data),
-            'audio': 0,
-            'videos': 0,
+            'stories': len(stories_data), 'audio': 0, 'videos': 0, 'transcriptions': 0,
             'total_requested': num_runs
         }
     
     # Phase 3: Process video for all stories
     video_data = process_video_for_all_stories(audio_data)
     
+    # Phase 4: Process transcription for all stories (if enabled)
+    transcription_data = []
+    if enable_transcription and video_data:
+        transcription_data = process_transcription_bulk(video_data, create_subtitled_videos)
+    
     return {
         'stories': len(stories_data),
         'audio': len(audio_data),
         'videos': len(video_data),
+        'transcriptions': len(transcription_data),
         'total_requested': num_runs
     }
 
 
-def run_single_story(custom_title=None):
+def run_single_story(custom_title=None, enable_transcription=True, create_subtitled_video=False):
     """
-    Execute one complete run of the content generation pipeline (legacy mode).
+    Execute one complete run of the content generation pipeline with transcription.
     
     Args:
         custom_title (str, optional): Custom title to use instead of generating one
+        enable_transcription (bool): Whether to generate transcription
+        create_subtitled_video (bool): Whether to create video with embedded subtitles
         
     Returns:
         bool: True if successful, False otherwise
@@ -178,6 +193,11 @@ def run_single_story(custom_title=None):
         "Generating audio narration", 
         "Creating video with audio and applying speed",
     ]
+    
+    if enable_transcription:
+        steps.append("Generating transcription and subtitles")
+        if create_subtitled_video:
+            steps.append("Creating video with embedded subtitles")
     
     with tqdm(total=len(steps), file=sys.stdout, 
               bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}') as pbar:
@@ -208,7 +228,35 @@ def run_single_story(custom_title=None):
             create_video_with_audio(output_folder)
             pbar.update(1)
             
+            # Phase 4: Transcription (if enabled)
+            if enable_transcription:
+                pbar.set_postfix_str(steps[3])
+                transcription_results = add_transcription_to_single_story_pipeline(
+                    output_folder, create_subtitled_video
+                )
+                pbar.update(1)
+                
+                if create_subtitled_video and transcription_results:
+                    pbar.update(1)  # For the subtitled video step
+            
             print(f"✓ Run completed successfully! Output saved to: {output_folder}")
+            
+            # Print summary of generated files
+            print("\n📁 Generated files:")
+            print(f"   📝 Story: story.txt")
+            print(f"   🎵 Audio: gene_audio.wav")
+            print(f"   🎬 Video: final_output.mp4")
+            if enable_transcription:
+                print(f"   📄 Transcript: transcript.txt")
+                if transcription_results and transcription_results.get('srt_file'):
+                    srt_filename = os.path.basename(transcription_results['srt_file'])
+                    if 'synced' in srt_filename:
+                        print(f"   📺 Subtitles: {srt_filename} (speed-adjusted)")
+                    else:
+                        print(f"   📺 Subtitles: {srt_filename}")
+                if create_subtitled_video and transcription_results and transcription_results.get('subtitled_video'):
+                    print(f"   🎬 Subtitled Video: final_output_with_subtitles.mp4")
+            
             return True
 
         except Exception as e:
@@ -218,28 +266,47 @@ def run_single_story(custom_title=None):
 
 
 def check_lmstudio_needed():
-    """
-    Check if LMStudio server needs to be started.
-    We'll start it preemptively since we might need it as final fallback.
-    """
+    """Check if LMStudio server needs to be started."""
     print("ℹ Starting LMStudio server as final fallback option...")
     print("  (Official OpenAI will be tried first, DeepSeek second, LMStudio serves as final backup)")
     return True
 
 
+def check_whisper_installation():
+    """Check if Whisper is installed for transcription."""
+    try:
+        import whisper
+        print("✅ Whisper is installed and ready for transcription")
+        return True
+    except ImportError:
+        print("⚠️ Whisper not found. To enable transcription, install it with:")
+        print("   pip install openai-whisper")
+        return False
+
+
 if __name__ == "__main__":
-    print("🎬 FRBV Content Generation Pipeline")
-    print("=" * 50)
+    print("🎬 Enhanced FRBV Content Generation Pipeline")
+    print("=" * 60)
+    
+    # Check Whisper installation
+    whisper_available = check_whisper_installation()
     
     num_runs = int(input("How many stories would you like to create? (Enter a number): "))
     
     # Get custom titles if user wants to provide them
     custom_titles = get_custom_titles(num_runs)
     
+    # Get transcription preferences
+    enable_transcription, create_subtitled_videos = False, False
+    if whisper_available:
+        enable_transcription, create_subtitled_videos = get_transcription_preferences()
+    else:
+        print("\n⚠️ Transcription will be skipped (Whisper not available)")
+    
     # Ask user for processing mode
     if num_runs > 1:
         print("\n📋 Processing Mode Options:")
-        print("1. BULK MODE (Recommended): Generate all stories first, then process audio/video")
+        print("1. BULK MODE (Recommended): Generate all stories first, then process audio/video/transcription")
         print("2. LEGACY MODE: Process each story completely before moving to next")
         
         mode_choice = input("\nChoose processing mode (1 or 2): ").strip()
@@ -255,8 +322,8 @@ if __name__ == "__main__":
         print("ℹ Will attempt Official OpenAI first, DeepSeek second, then LMStudio if needed\n")
     
     if use_bulk_mode:
-        # BULK MODE: Generate all stories first, then process audio/video
-        results = run_bulk_pipeline(num_runs, custom_titles)
+        # BULK MODE: Generate all content in phases
+        results = run_bulk_pipeline(num_runs, custom_titles, enable_transcription, create_subtitled_videos)
         
         print(f"\n{'='*60}")
         print("📊 FINAL PIPELINE SUMMARY")
@@ -264,11 +331,19 @@ if __name__ == "__main__":
         print(f"📝 Stories Generated: {results['stories']}/{results['total_requested']}")
         print(f"🎵 Audio Files Created: {results['audio']}/{results['total_requested']}")
         print(f"🎬 Videos Created: {results['videos']}/{results['total_requested']}")
-        print(f"✅ Complete Success Rate: {results['videos']}/{results['total_requested']} ({results['videos']/results['total_requested']*100:.1f}%)")
+        
+        if enable_transcription:
+            print(f"🎤 Transcriptions Created: {results['transcriptions']}/{results['total_requested']}")
+            success_metric = results['transcriptions']
+        else:
+            success_metric = results['videos']
+            
+        print(f"✅ Complete Success Rate: {success_metric}/{results['total_requested']} ({success_metric/results['total_requested']*100:.1f}%)")
         
     else:
         # LEGACY MODE: Process each story completely before moving to next
-        print(f"\n🔄 Using Legacy Mode: Processing {num_runs} stories sequentially...")
+        pipeline_name = "Enhanced Legacy Mode" if enable_transcription else "Legacy Mode"
+        print(f"\n🔄 Using {pipeline_name}: Processing {num_runs} stories sequentially...")
         successful_runs = 0
         
         for i in range(num_runs):
@@ -279,7 +354,7 @@ if __name__ == "__main__":
             # Use custom title if available, otherwise None for auto-generation
             current_title = custom_titles[i] if custom_titles else None
             
-            if run_single_story(current_title):
+            if run_single_story(current_title, enable_transcription, create_subtitled_videos):
                 successful_runs += 1
             
             if i < num_runs - 1:  # Not the last run
@@ -296,7 +371,7 @@ if __name__ == "__main__":
     
     # Final summary
     print(f"\n{'='*60}")
-    print("🎉 PIPELINE COMPLETE!")
+    print("🎉 ENHANCED PIPELINE COMPLETE!")
     print(f"{'='*60}")
     print("\n🔧 API Priority Summary:")
     print("• Primary: Official OpenAI API (gpt-4o-mini)")
@@ -304,9 +379,19 @@ if __name__ == "__main__":
     print("• Final Fallback: LMStudio (local, always available)")
     print("• System automatically chose the best available option for each generation")
     
+    if enable_transcription:
+        print(f"\n🎤 Transcription Features:")
+        print("• Word-level subtitle timing for better readability")
+        print("• SRT files compatible with all video players")
+        print("• Full transcript text files for reference")
+        if create_subtitled_videos:
+            print("• Videos with embedded subtitles for direct sharing")
+    
     if use_bulk_mode:
         print(f"\n📈 Bulk Processing Benefits:")
         print("• Faster overall completion time")
         print("• Better resource utilization")
         print("• Easier error tracking and recovery")
         print("• Cleaner progress visualization")
+        if enable_transcription:
+            print("• Efficient batch transcription processing")
