@@ -1,8 +1,7 @@
 """
 transcription_integration.py
 Enhanced transcription module integrated with the FRBV pipeline.
-This version has been corrected for syntax errors, indentation issues,
-and a corrupted function definition.
+Fixed to create only one SRT file using final_output.mp4 timing.
 """
 import whisper
 import os
@@ -13,12 +12,13 @@ import subprocess
 import traceback
 from utils import get_audio_duration
 
-def transcribe_audio_to_srt(audio_file_path: str, output_folder: str, model_size: str = "tiny") -> str:
+def transcribe_video_to_srt(video_file_path: str, output_folder: str, model_size: str = "tiny") -> str:
     """
-    Transcribe audio file and create SRT subtitle file with word-level timestamps.
+    Transcribe video file directly and create SRT subtitle file with correct timing.
+    This eliminates the need for separate timing adjustment.
 
     Args:
-        audio_file_path (str): Path to the audio file to transcribe.
+        video_file_path (str): Path to the final video file to transcribe.
         output_folder (str): Directory where the SRT file will be saved.
         model_size (str): Whisper model size ("tiny", "base", "small", "medium", "large").
 
@@ -26,14 +26,14 @@ def transcribe_audio_to_srt(audio_file_path: str, output_folder: str, model_size
         str: Path to the generated SRT file, or None if failed.
     """
     try:
-        print(f"🎤 Starting transcription with Whisper ({model_size} model)...")
+        print(f"🎤 Starting video transcription with Whisper ({model_size} model)...")
 
         # Load the Whisper model
         model = whisper.load_model(model_size)
 
-        # Perform transcription with word-level timestamps
+        # Perform transcription with word-level timestamps directly on the video
         result = model.transcribe(
-            audio_file_path,
+            video_file_path,
             language="en",
             word_timestamps=True,
         )
@@ -41,7 +41,7 @@ def transcribe_audio_to_srt(audio_file_path: str, output_folder: str, model_size
         transcribed_text = result["text"]
         segments = result["segments"]
 
-        # Create SRT file path
+        # Create single SRT file path
         srt_file = os.path.join(output_folder, "subtitles.srt")
 
         # Generate SRT content with word-level timestamps
@@ -89,18 +89,12 @@ def transcribe_audio_to_srt(audio_file_path: str, output_folder: str, model_size
                     f.write(f"{text}\n\n")
                     subtitle_index += 1
 
-        print(f"✅ Transcription completed: {srt_file}")
-
-        # Save the full transcription as a text file
-        transcript_file = os.path.join(output_folder, "transcript.txt")
-        with open(transcript_file, "w", encoding="utf-8") as f:
-            f.write(transcribed_text)
-        print(f"✅ Full transcript saved: {transcript_file}")
+        print(f"✅ Video transcription completed: {srt_file}")
 
         return srt_file
 
     except Exception as e:
-        print(f"❌ Transcription failed: {e}")
+        print(f"❌ Video transcription failed: {e}")
         traceback.print_exc()
         return None
 
@@ -158,80 +152,10 @@ def create_video_with_embedded_subtitles(video_path: str, srt_path: str, output_
         print(f"❌ Error embedding subtitles: {e}")
         return None
 
-def adjust_srt_timing_for_video_speed(audio_file: str, video_file: str, srt_file: str, output_folder: str) -> str:
-    """
-    Adjust SRT timing to match the sped-up video using saved speed information.
-
-    Args:
-        audio_file (str): Path to original audio file.
-        video_file (str): Path to final video file.
-        srt_file (str): Path to original SRT file.
-        output_folder (str): Output directory.
-
-    Returns:
-        str: Path to speed-adjusted SRT file, or original srt_file if no adjustment is needed/possible.
-    """
-    try:
-        speed_info_file = os.path.join(output_folder, "speed_info.json")
-        speed_factor = 1.0
-
-        if os.path.exists(speed_info_file):
-            with open(speed_info_file, 'r') as f:
-                speed_info = json.load(f)
-            speed_factor = speed_info.get('speed_factor', 1.0)
-            print(f"📊 Using saved speed info: {speed_factor:.2f}x")
-        else:
-            print("⚠️ speed_info.json not found. Calculating speed factor from file durations...")
-            original_audio_duration = get_audio_duration(audio_file)
-            
-            # Get final video duration using ffprobe
-            probe_result = subprocess.run([
-                "ffprobe", "-v", "error", "-show_entries", "format=duration", 
-                "-of", "default=noprint_wrappers=1:nokey=1", video_file
-            ], capture_output=True, text=True)
-            
-            if probe_result.returncode == 0 and probe_result.stdout.strip():
-                video_duration = float(probe_result.stdout.strip())
-                if video_duration > 0:
-                    speed_factor = original_audio_duration / video_duration
-                print(f"  Original audio: {original_audio_duration:.2f}s, Final video: {video_duration:.2f}s")
-                print(f"  Calculated speed factor: {speed_factor:.2f}x")
-            else:
-                print("⚠️ Could not get video duration. Using original SRT timing.")
-                return srt_file
-
-        # If no significant speed change, return original
-        if abs(speed_factor - 1.0) < 0.01:
-            print("No timing adjustment needed.")
-            return srt_file
-
-        with open(srt_file, 'r', encoding='utf-8') as f:
-            srt_content = f.read()
-
-        def adjust_timestamp(match):
-            h, m, s, ms = map(int, match.groups())
-            total_seconds = h * 3600 + m * 60 + s + ms / 1000
-            adjusted_seconds = total_seconds / speed_factor
-            return _seconds_to_srt_time(adjusted_seconds)
-
-        timestamp_pattern = re.compile(r'(\d{2}):(\d{2}):(\d{2}),(\d{3})')
-        adjusted_content = timestamp_pattern.sub(adjust_timestamp, srt_content)
-        
-        adjusted_srt_file = os.path.join(output_folder, "subtitles_synced.srt")
-        with open(adjusted_srt_file, 'w', encoding='utf-8') as f:
-            f.write(adjusted_content)
-
-        print(f"✅ Speed-adjusted SRT created: {os.path.basename(adjusted_srt_file)}")
-        return adjusted_srt_file
-
-    except Exception as e:
-        print(f"⚠️ Failed to adjust SRT timing: {e}. Using original SRT timing.")
-        traceback.print_exc()
-        return srt_file
-
 def process_transcription_for_story(output_folder: str, create_subtitled_video: bool = False) -> dict:
     """
-    Process transcription for a single story's audio and optionally create subtitled video.
+    Process transcription for a single story using the final video file directly.
+    This creates only one SRT file with correct timing.
 
     Args:
         output_folder (str): Path to the story's output folder.
@@ -240,34 +164,46 @@ def process_transcription_for_story(output_folder: str, create_subtitled_video: 
     Returns:
         dict: Results of transcription processing.
     """
-    results = {'srt_file': None, 'transcript_file': None, 'subtitled_video': None, 'success': False}
-    audio_file = os.path.join(output_folder, "gene_audio.wav")
+    results = {'srt_file': None, 'subtitled_video': None, 'success': False}
     
-    if not os.path.exists(audio_file):
-        print(f"❌ Audio file not found: {audio_file}")
-        return results
-
-    # Transcribe audio to get the initial SRT file
-    original_srt_file = transcribe_audio_to_srt(audio_file, output_folder)
-    if not original_srt_file:
-        return results
-
-    # Adjust SRT timing if a final video exists
+    # Use final video file for transcription instead of audio
     video_file = os.path.join(output_folder, "final_output.mp4")
-    final_srt_file = original_srt_file
-    if os.path.exists(video_file):
-        final_srt_file = adjust_srt_timing_for_video_speed(audio_file, video_file, original_srt_file, output_folder)
     
-    results['srt_file'] = final_srt_file
-    results['transcript_file'] = os.path.join(output_folder, "transcript.txt")
+    if not os.path.exists(video_file):
+        print(f"❌ Video file not found: {video_file}")
+        return results
+
+    # Transcribe video directly to get SRT file with correct timing
+    srt_file = transcribe_video_to_srt(video_file, output_folder)
+    if not srt_file:
+        return results
+
+    results['srt_file'] = srt_file
     results['success'] = True
 
     # Optionally create video with embedded subtitles
     if create_subtitled_video:
+        results['subtitled_video'] = create_video_with_embedded_subtitles(video_file, srt_file, output_folder)
+        
+        # If subtitled video was created successfully, replace final_output.mp4 with it
+        if results['subtitled_video'] and os.path.exists(results['subtitled_video']):
+            final_video_path = os.path.join(output_folder, "gene_video.mp4")
+            
+            # Remove original final_output.mp4
+            if os.path.exists(video_file):
+                os.remove(video_file)
+                print(f"🗑️ Removed original video: {os.path.basename(video_file)}")
+            
+            # Rename subtitled video to gene_video.mp4
+            os.rename(results['subtitled_video'], final_video_path)
+            print(f"✅ Final video renamed to: gene_video.mp4")
+            results['subtitled_video'] = final_video_path
+    else:
+        # If no subtitled video requested, just rename final_output.mp4 to gene_video.mp4
+        final_video_path = os.path.join(output_folder, "gene_video.mp4")
         if os.path.exists(video_file):
-            results['subtitled_video'] = create_video_with_embedded_subtitles(video_file, results['srt_file'], output_folder)
-        else:
-            print(f"⚠️ Video file not found for subtitle embedding: {video_file}")
+            os.rename(video_file, final_video_path)
+            print(f"✅ Final video renamed to: gene_video.mp4")
     
     return results
 
@@ -297,9 +233,10 @@ def process_transcription_bulk(stories_data: list, create_subtitled_videos: bool
                 successful_transcriptions.append((title, story, output_folder, transcription_results))
                 print(f"✅ Transcription {i} completed: {title}")
                 print(f"  📝 SRT file: {os.path.basename(transcription_results['srt_file'])}")
-                print(f"  📄 Transcript: {os.path.basename(transcription_results['transcript_file'])}")
                 if transcription_results['subtitled_video']:
-                    print(f"  🎬 Subtitled video: {os.path.basename(transcription_results['subtitled_video'])}")
+                    print(f"  🎬 Final video: gene_video.mp4 (with embedded subtitles)")
+                else:
+                    print(f"  🎬 Final video: gene_video.mp4")
             else:
                 print(f"❌ Transcription {i} failed: {title}")
         except Exception as e:
@@ -311,18 +248,19 @@ def process_transcription_bulk(stories_data: list, create_subtitled_videos: bool
     print(f"{'='*50}")
     return successful_transcriptions
 
-# --- Corrected Integration Functions ---
+# --- Integration Functions ---
 
 def add_transcription_to_single_story_pipeline(output_folder: str, create_subtitled_video: bool = True):
     """
     Add transcription step to the single story pipeline. This is a wrapper function.
-    This function was previously corrupted and has been fixed.
+    Now creates only one SRT file using the final video.
     """
     print("\n🎤 Adding transcription to pipeline...")
     transcription_results = process_transcription_for_story(output_folder, create_subtitled_video)
     
     if transcription_results['success']:
         print("✅ Transcription step completed successfully!")
+        print("📝 Created single SRT file with correct video timing")
     else:
         print("❌ Transcription step failed!")
     

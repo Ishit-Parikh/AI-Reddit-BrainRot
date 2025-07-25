@@ -152,7 +152,7 @@ def _apply_duration_based_speed_vaapi(normal_output: str, output_folder: str, du
     
     # If no speedup needed, just rename the file and save speed info
     if speed_factor == 1.0:
-        sped_up_output = os.path.join(output_folder, "final_output.mp4")
+        sped_up_output = os.path.join(output_folder, "gene_video.mp4")
         os.rename(normal_output, sped_up_output)
         print(f"✓ No speedup applied (≤90s video): {sped_up_output}")
         
@@ -161,7 +161,7 @@ def _apply_duration_based_speed_vaapi(normal_output: str, output_folder: str, du
         return
     
     # Use ffmpeg to speed up the video with VAAPI
-    sped_up_output = os.path.join(output_folder, "final_output.mp4")
+    sped_up_output = os.path.join(output_folder, "gene_video.mp4")
     setpts_value = round(1.0 / speed_factor, 3)  # For video speed
     atempo_value = speed_factor  # For audio speed
     
@@ -255,7 +255,7 @@ def _try_alternative_vaapi_device(normal_output: str, output_folder: str, speed_
     """Try alternative VAAPI device (renderD129) if renderD128 fails."""
     print("Trying alternative VAAPI device (renderD129)...")
     
-    sped_up_output = os.path.join(output_folder, "final_output.mp4")
+    sped_up_output = os.path.join(output_folder, "gene_video.mp4")
     setpts_value = round(1.0 / speed_factor, 3)
     atempo_value = speed_factor
     
@@ -307,7 +307,7 @@ def _apply_duration_based_speed_cpu_fallback(normal_output: str, output_folder: 
     """CPU fallback for when hardware encoding fails."""
     print("Using CPU encoding as fallback...")
     
-    sped_up_output = os.path.join(output_folder, "final_output.mp4")
+    sped_up_output = os.path.join(output_folder, "gene_video.mp4")
     setpts_value = round(1.0 / speed_factor, 3)
     atempo_value = speed_factor
     
