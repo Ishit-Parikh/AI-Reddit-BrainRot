@@ -167,7 +167,7 @@ def process_transcription_for_story(output_folder: str, create_subtitled_video: 
     results = {'srt_file': None, 'subtitled_video': None, 'success': False}
     
     # Use final video file for transcription instead of audio
-    video_file = os.path.join(output_folder, "final_output.mp4")
+    video_file = os.path.join(output_folder, "gene_video.mp4")
     
     if not os.path.exists(video_file):
         print(f"❌ Video file not found: {video_file}")
