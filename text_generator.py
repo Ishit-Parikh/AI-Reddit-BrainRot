@@ -220,7 +220,7 @@ def generate_text_content(custom_title=None):
         
         # File paths for system prompts
         title_prompt_path = "System_Title_Prompt.txt"
-        story_prompt_path = "Story_System_Prompt.md"
+        story_prompt_path = "Story_System_Prompt.txt"
         
         print("✓ Reading system prompts...")
         system_prompt_title = read_file(title_prompt_path)
