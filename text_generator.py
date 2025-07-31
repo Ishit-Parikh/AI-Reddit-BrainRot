@@ -71,11 +71,10 @@ def generate_with_openai(system_prompt: str, user_prompt: str, content_type: str
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
-        
-        modelID = "ft:gpt-4o-mini-2024-07-18:personal:spurned::BrmvSeQE"
+    
 
         completion = openai_client.chat.completions.create(
-            model="ft:gpt-4o-mini-2024-07-18:personal:spunred:BrmvSeQE",  # <-- lowercase ID
+            model=os.getenv("OPENAI_FINE_TUNED_MODEL_ID"),  # <-- lowercase ID
             messages=messages,
             temperature=0.7
         )
@@ -143,7 +142,7 @@ def generate_with_lmstudio(system_prompt: str, user_prompt: str, content_type: s
         # Give the server some time if it was just started
         time.sleep(2)
         
-        model_name = "gemma-3-12b-it"
+        model_name = os.getenv("LMSTUDIO_MODEL_NAME")
         model = lms.llm(model_name)
         
         messages = {
