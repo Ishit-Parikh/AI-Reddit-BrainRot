@@ -1,7 +1,7 @@
 """
 transcription_integration.py
-Enhanced transcription module with viral ASS captions integrated with the FRBV pipeline.
-Uses random fonts, colors, and advanced styling for professional viral-style subtitles.
+Enhanced transcription module with option to include title in subtitles.
+Uses configuration management for fonts directory.
 """
 import whisper
 import os
@@ -11,31 +11,39 @@ import re
 import subprocess
 import traceback
 import random
+from config_manager import get_config
 from utils import get_audio_duration
 
-# Configuration
-FONTS_DIR = "/home/lord/Desktop/tst/fonts"  # Update this path as needed
-
-def choose_random_font(fonts_dir):
+def choose_random_font(fonts_dir=None):
     """
-    Randomly selects and returns the FONT NAME (not file path) from the given folder.
-    ASS requires the font name, not the file path.
+    Randomly selects and returns the FONT NAME from the configured fonts folder.
     """
-    if not os.path.exists(fonts_dir):
-        print(f"⚠️ Fonts directory not found: {fonts_dir}")
-        return "Arial"  # fallback font
+    if not fonts_dir:
+        fonts_dir = get_config("fonts_dir")
+    
+    if not fonts_dir or not os.path.exists(fonts_dir):
+        print("⚠️ No custom fonts directory configured, using Arial")
+        return "Arial"
     
     fonts = [f for f in os.listdir(fonts_dir) if os.path.isfile(os.path.join(fonts_dir, f))]
     
     if not fonts:
-        print("⚠️ No font files found in the folder.")
-        return "Arial"  # fallback font
+        print("⚠️ No font files found in configured directory.")
+        return "Arial"
     
     chosen_file = random.choice(fonts)
     # Extract font name (without extension)
     font_name = os.path.splitext(chosen_file)[0]
     print(f"🎨 Random font selected: {font_name}")
     return font_name
+
+def get_title_from_folder(output_folder: str) -> str:
+    """Read the title from title.txt if it exists."""
+    title_file = os.path.join(output_folder, "title.txt")
+    if os.path.exists(title_file):
+        with open(title_file, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    return None
 
 def ends_with_punctuation(text):
     """Check if text ends with punctuation marks."""
@@ -58,23 +66,35 @@ def format_time_ass(seconds):
     centiseconds = int((seconds * 100) % 100)
     return f"{hours}:{minutes:02d}:{secs:02d}.{centiseconds:02d}"
 
-def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, model_size: str = "tiny") -> dict:
+def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, include_title_in_ass: bool = False, model_size: str = "tiny") -> dict:
     """
     Transcribe video file and create both ASS (for styling) and SRT (for compatibility) subtitle files.
-
+    SRT always includes title, ASS includes title only if requested.
+    
     Args:
         video_file_path (str): Path to the final video file to transcribe.
         output_folder (str): Directory where subtitle files will be saved.
+        include_title_in_ass (bool): Whether to include the story title in ASS file.
         model_size (str): Whisper model size ("tiny", "base", "small", "medium", "large").
-
+    
     Returns:
         dict: Paths to generated files and metadata.
     """
     try:
         print(f"🎤 Starting video transcription with Whisper ({model_size} model)...")
 
+        # Get title - always needed for SRT
+        title = get_title_from_folder(output_folder)
+        if title:
+            print(f"📝 Title found: {title}")
+            if include_title_in_ass:
+                print("   Will include title in ASS subtitles")
+            else:
+                print("   Will NOT include title in ASS subtitles")
+            print("   Title will always be included in SRT subtitles")
+
         # Choose random font for ASS styling
-        chosen_font = choose_random_font(FONTS_DIR)
+        chosen_font = choose_random_font()
         
         # Available color styles
         color_styles = ["Yellow", "Red", "White", "Blue", "Orange", "Green"]
@@ -118,15 +138,25 @@ def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, mo
                 "White": "&H00FFFFFF",
                 "Blue": "&H00FF0000",
                 "Orange": "&H000080FF",
-                "Green": "&H0000FF00"
+                "Green": "&H0000FF00",
+                "Title": "&H00FFFF00"  # Special style for title
             }
             for name, color in styles.items():
-                f.write(f"Style: {name},{chosen_font},12,{color},&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,1,1,5,10,10,10,1\n")
+                if name == "Title":
+                    # Larger font size for title
+                    f.write(f"Style: {name},{chosen_font},16,{color},&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,2,5,10,10,10,1\n")
+                else:
+                    f.write(f"Style: {name},{chosen_font},12,{color},&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,1,1,5,10,10,10,1\n")
             f.write("\n")
             
             # Events section
             f.write("[Events]\n")
             f.write("Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
+            
+            # Add title to ASS only if requested
+            if title and include_title_in_ass:
+                # Display title for first 3 seconds
+                f.write(f"Dialogue: 0,0:00:00.00,0:00:03.00,Title,,0,0,0,,{title}\n")
             
             # Collect word groups
             punctuation_groups = []
@@ -172,9 +202,17 @@ def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, mo
             if current_group:
                 write_punctuation_group(f, current_group, color_styles[current_color_index])
 
-        # Generate SRT file for compatibility
+        # Generate SRT file - ALWAYS include title in SRT
         with open(srt_file, "w", encoding="utf-8") as f:
             subtitle_index = 1
+            
+            # Always add title to SRT
+            if title:
+                f.write(f"{subtitle_index}\n")
+                f.write("00:00:00,000 --> 00:00:03,000\n")
+                f.write(f"{title}\n\n")
+                subtitle_index += 1
+            
             for segment in segments:
                 if "words" in segment and segment["words"]:
                     words = segment["words"]
@@ -218,12 +256,18 @@ def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, mo
 
         print(f"✅ Video transcription completed!")
         print(f"  🎨 ASS subtitles: {os.path.basename(ass_file)} (with {chosen_font} font)")
+        if include_title_in_ass and title:
+            print(f"     - Title included in ASS")
+        else:
+            print(f"     - Title NOT included in ASS")
         print(f"  📺 SRT subtitles: {os.path.basename(srt_file)}")
+        print(f"     - Title always included in SRT")
 
         return {
             'ass_file': ass_file,
             'srt_file': srt_file,
             'font_used': chosen_font,
+            'title_in_ass': include_title_in_ass and title is not None,
             'success': True
         }
 
@@ -244,34 +288,28 @@ def create_video_with_embedded_subtitles(video_path: str, subtitle_path: str, ou
     """
     Create a new video with embedded subtitles using FFmpeg.
     Supports both ASS (with styling) and SRT (basic) subtitle formats.
-
-    Args:
-        video_path (str): Path to the input video file.
-        subtitle_path (str): Path to the subtitle file (ASS or SRT).
-        output_folder (str): Directory for the output video.
-        use_ass (bool): Whether to use ASS styling (requires fonts directory).
-
-    Returns:
-        str: Path to the video with embedded subtitles, or None if failed.
     """
     try:
         output_path = os.path.join(output_folder, "final_output_with_subtitles.mp4")
+        
+        # Get fonts directory from config
+        fonts_dir = get_config("fonts_dir")
 
-        if use_ass and subtitle_path.endswith('.ass'):
+        if use_ass and subtitle_path.endswith('.ass') and fonts_dir:
             # FFmpeg command for ASS subtitles with font directory
             escaped_subtitle_path = subtitle_path.replace('\\', '/').replace(':', '\\:')
-            escaped_fonts_dir = FONTS_DIR.replace('\\', '/').replace(':', '\\:')
+            escaped_fonts_dir = fonts_dir.replace('\\', '/').replace(':', '\\:')
             
             ffmpeg_command = [
                 'ffmpeg',
                 '-i', video_path,
                 '-vf', f"subtitles='{escaped_subtitle_path}':fontsdir='{escaped_fonts_dir}'",
-                '-c:a', 'copy',  # Copy audio without re-encoding
+                '-c:a', 'copy',
                 '-y', output_path
             ]
             print("🎬 Adding styled ASS subtitles to video...")
         else:
-            # FFmpeg command for SRT subtitles with basic styling
+            # FFmpeg command for SRT subtitles or ASS without custom fonts
             escaped_subtitle_path = subtitle_path.replace('\\', '/').replace(':', '\\:')
             ffmpeg_command = [
                 'ffmpeg',
@@ -280,13 +318,13 @@ def create_video_with_embedded_subtitles(video_path: str, subtitle_path: str, ou
                 '-c:a', 'copy',
                 '-y', output_path
             ]
-            print("🎬 Adding basic SRT subtitles to video...")
+            print("🎬 Adding subtitles to video...")
 
         result = subprocess.run(
             ffmpeg_command,
             capture_output=True,
             text=True,
-            timeout=300,  # 5 minutes timeout
+            timeout=300,
             check=False
         )
 
@@ -301,17 +339,11 @@ def create_video_with_embedded_subtitles(video_path: str, subtitle_path: str, ou
         print(f"❌ Error embedding subtitles: {e}")
         return None
 
-def process_transcription_for_story(output_folder: str, create_subtitled_video: bool = False) -> dict:
+def process_transcription_for_story(output_folder: str, create_subtitled_video: bool = False, 
+                                   use_ass: bool = False, include_title_in_ass: bool = False) -> dict:
     """
-    Process transcription for a single story using the final video file directly.
-    Creates both ASS (styled) and SRT (compatible) subtitle files.
-
-    Args:
-        output_folder (str): Path to the story's output folder.
-        create_subtitled_video (bool): Whether to create a video with embedded subtitles.
-
-    Returns:
-        dict: Results of transcription processing.
+    Process transcription for a single story.
+    Always creates SRT file. Optionally creates video with embedded subtitles.
     """
     results = {'ass_file': None, 'srt_file': None, 'subtitled_video': None, 'success': False}
     
@@ -322,25 +354,27 @@ def process_transcription_for_story(output_folder: str, create_subtitled_video: 
         print(f"❌ Video file not found: {video_file}")
         return results
 
-    # Transcribe video to get both ASS and SRT files
-    transcription_result = transcribe_video_to_ass_and_srt(video_file, output_folder)
+    # Always transcribe video to get both ASS and SRT files
+    transcription_result = transcribe_video_to_ass_and_srt(video_file, output_folder, include_title_in_ass)
     if not transcription_result['success']:
         return results
 
     results.update(transcription_result)
 
-    # Optionally create video with embedded subtitles (prioritize ASS over SRT)
+    # Optionally create video with embedded subtitles
     if create_subtitled_video:
-        # Try ASS first (with styling), fallback to SRT
-        subtitle_file = results['ass_file'] if results['ass_file'] else results['srt_file']
-        use_ass = results['ass_file'] is not None
+        # Choose subtitle file based on user preference
+        if use_ass and results['ass_file']:
+            subtitle_file = results['ass_file']
+        else:
+            subtitle_file = results['srt_file']
         
         subtitled_video = create_video_with_embedded_subtitles(
             video_file, subtitle_file, output_folder, use_ass
         )
         
         if subtitled_video and os.path.exists(subtitled_video):
-            # Replace original video with subtitled version
+            # Delete the original gene_video.mp4
             if os.path.exists(video_file):
                 os.remove(video_file)
                 print(f"🗑️ Removed original video: {os.path.basename(video_file)}")
@@ -353,22 +387,25 @@ def process_transcription_for_story(output_folder: str, create_subtitled_video: 
     
     return results
 
-def process_transcription_bulk(stories_data: list, create_subtitled_videos: bool = False) -> list:
+def process_transcription_bulk(stories_data: list, create_subtitled_videos: bool = False, 
+                              use_ass: bool = False, include_title_in_ass: bool = False) -> list:
     """
     Process transcription for multiple stories in bulk.
-
-    Args:
-        stories_data (list): List of tuples (title, story, output_folder).
-        create_subtitled_videos (bool): Whether to create videos with embedded subtitles.
-
-    Returns:
-        list: List of tuples (title, story, output_folder, transcription_results).
+    Always creates SRT files for all stories.
     """
     print(f"\n{'='*50}")
     print("🎤 BULK TRANSCRIPTION PHASE")
     print(f"Processing transcription for {len(stories_data)} stories...")
+    print("📺 SRT files will be created for all stories")
+    if use_ass:
+        print("🎨 ASS files will also be created with viral-style")
+        if include_title_in_ass:
+            print("📝 Titles will be included in ASS files")
+        else:
+            print("📝 Titles will NOT be included in ASS files")
+    print("📝 Titles will always be included in SRT files")
     if create_subtitled_videos:
-        print("🎨 Will create videos with viral-style ASS subtitles")
+        print("🎬 Videos with embedded subtitles will be created")
     print(f"{'='*50}")
 
     successful_transcriptions = []
@@ -376,14 +413,17 @@ def process_transcription_bulk(stories_data: list, create_subtitled_videos: bool
         print(f"\n🎙️ Processing transcription {i}/{len(stories_data)}: {title}")
         print("-" * 40)
         try:
-            transcription_results = process_transcription_for_story(output_folder, create_subtitled_videos)
+            transcription_results = process_transcription_for_story(
+                output_folder, create_subtitled_videos, use_ass, include_title_in_ass
+            )
             if transcription_results['success']:
                 successful_transcriptions.append((title, story, output_folder, transcription_results))
                 print(f"✅ Transcription {i} completed: {title}")
-                print(f"  🎨 ASS subtitles: subtitles.ass ({transcription_results.get('font_used', 'default')} font)")
-                print(f"  📺 SRT subtitles: subtitles.srt")
+                if use_ass:
+                    print(f"  🎨 ASS subtitles: subtitles.ass ({transcription_results.get('font_used', 'default')} font)")
+                print(f"  📺 SRT subtitles: subtitles.srt (with title)")
                 if transcription_results['subtitled_video']:
-                    print(f"  🎬 Final video: gene_video.mp4 (with embedded viral subtitles)")
+                    print(f"  🎬 Final video: gene_video.mp4 (with embedded subtitles)")
                 else:
                     print(f"  🎬 Final video: gene_video.mp4")
             else:
@@ -400,24 +440,86 @@ def process_transcription_bulk(stories_data: list, create_subtitled_videos: bool
 
 # --- Integration Functions ---
 
-def add_transcription_to_single_story_pipeline(output_folder: str, create_subtitled_video: bool = True):
+def add_transcription_to_single_story_pipeline(output_folder: str, create_subtitled_video: bool = True, 
+                                              use_ass: bool = False, include_title_in_ass: bool = False):
     """
-    Add transcription step to the single story pipeline with viral-style ASS subtitles.
+    Add transcription step to the single story pipeline.
+    Always creates SRT file.
     """
-    print("\n🎤 Adding viral transcription to pipeline...")
-    transcription_results = process_transcription_for_story(output_folder, create_subtitled_video)
+    print("\n🎤 Adding transcription to pipeline...")
+    transcription_results = process_transcription_for_story(
+        output_folder, create_subtitled_video, use_ass, include_title_in_ass
+    )
     
     if transcription_results['success']:
-        print("✅ Viral transcription step completed successfully!")
-        print("🎨 Created ASS subtitles with random font and alternating colors")
+        print("✅ Transcription step completed successfully!")
+        print("📺 Created SRT subtitles (with title)")
+        if use_ass:
+            print("🎨 Created ASS subtitles with random font and alternating colors")
+            if transcription_results.get('title_in_ass'):
+                print("   - Title included in ASS")
+            else:
+                print("   - Title NOT included in ASS")
+    else:
+        print("❌ Transcription step failed!")
+    
+    return transcription_resultsprint(f"\n{'='*50}")
+    print("🎤 BULK TRANSCRIPTION PHASE")
+    print(f"Processing transcription for {len(stories_data)} stories...")
+    if use_ass:
+        print("🎨 Will create viral-style ASS subtitles")
+    if include_title:
+        print("📝 Will include story titles in subtitles")
+    print(f"{'='*50}")
+
+    successful_transcriptions = []
+    for i, (title, story, output_folder) in enumerate(stories_data, 1):
+        print(f"\n🎙️ Processing transcription {i}/{len(stories_data)}: {title}")
+        print("-" * 40)
+        try:
+            transcription_results = process_transcription_for_story(
+                output_folder, create_subtitled_videos, use_ass, include_title
+            )
+            if transcription_results['success']:
+                successful_transcriptions.append((title, story, output_folder, transcription_results))
+                print(f"✅ Transcription {i} completed: {title}")
+                if use_ass:
+                    print(f"  🎨 ASS subtitles: subtitles.ass ({transcription_results.get('font_used', 'default')} font)")
+                print(f"  📺 SRT subtitles: subtitles.srt")
+                if transcription_results['subtitled_video']:
+                    print(f"  🎬 Subtitled video: {os.path.basename(transcription_results['subtitled_video'])}")
+            else:
+                print(f"❌ Transcription {i} failed: {title}")
+        except Exception as e:
+            print(f"❌ Unhandled error in transcription for '{title}': {e}")
+            traceback.print_exc()
+
+    print(f"\n{'='*50}")
+    print("📊 BULK TRANSCRIPTION COMPLETE")
+    print(f"Successfully processed: {len(successful_transcriptions)}/{len(stories_data)} transcriptions")
+    print(f"{'='*50}")
+    return successful_transcriptions
+
+# --- Integration Functions ---
+
+def add_transcription_to_single_story_pipeline(output_folder: str, create_subtitled_video: bool = True, 
+                                              use_ass: bool = False, include_title: bool = False):
+    """
+    Add transcription step to the single story pipeline.
+    """
+    print("\n🎤 Adding transcription to pipeline...")
+    transcription_results = process_transcription_for_story(
+        output_folder, create_subtitled_video, use_ass, include_title
+    )
+    
+    if transcription_results['success']:
+        print("✅ Transcription step completed successfully!")
+        if use_ass:
+            print("🎨 Created ASS subtitles with random font and alternating colors")
         print("📺 Created SRT subtitles for compatibility")
+        if transcription_results.get('title_included'):
+            print("📝 Title included in subtitles")
     else:
         print("❌ Transcription step failed!")
     
     return transcription_results
-
-def add_transcription_to_bulk_pipeline(stories_data: list, create_subtitled_videos: bool = True):
-    """
-    Add transcription step to the bulk pipeline with viral-style ASS subtitles.
-    """
-    return process_transcription_bulk(stories_data, create_subtitled_videos)
