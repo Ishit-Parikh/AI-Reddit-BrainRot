@@ -1,6 +1,6 @@
 """
 text_generator.py
-Updated to use official OpenAI API first, then DeepSeek, then LMStudio as fallback.
+Updated to use configuration management system instead of hardcoded values.
 """
 
 import os
@@ -8,78 +8,65 @@ import time
 import lmstudio as lms
 from openai import OpenAI
 
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
+from config_manager import get_config
 from utils import (
     read_file, 
     create_output_folder, 
     write_text_file
 )
 
-# Get API keys from environment variables
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-FINE_TUNED_FOR_STORIES = os.getenv("FINE_TUNED_FOR_STORIES")
-
-# Initialize the official OpenAI client (PRIMARY)
-openai_client = OpenAI(
-    api_key=FINE_TUNED_FOR_STORIES
-    # No base_url needed - uses official OpenAI API
-)
-
-# Initialize the DeepSeek client using OpenAI SDK format (SECONDARY)
-deepseek_client = OpenAI(
-    api_key=DEEPSEEK_API_KEY,
-    base_url="https://api.chatanywhere.tech/v1"
-)
+def initialize_api_clients():
+    """Initialize API clients using configuration."""
+    clients = {}
+    
+    # Initialize OpenAI client if configured
+    openai_key = get_config("FINE_TUNED_FOR_STORIES")
+    if openai_key:
+        clients['openai'] = OpenAI(api_key=openai_key)
+    
+    # Initialize DeepSeek client if configured
+    deepseek_key = get_config("DEEPSEEK_API_KEY")
+    if deepseek_key:
+        clients['deepseek'] = OpenAI(
+            api_key=deepseek_key,
+            base_url="https://api.chatanywhere.tech/v1"
+        )
+    
+    return clients
 
 
 def validate_api_keys():
-    """Validate that required API keys are present."""
-    missing_keys = []
+    """Validate that at least one API key is configured."""
+    openai_key = get_config("FINE_TUNED_FOR_STORIES")
+    deepseek_key = get_config("DEEPSEEK_API_KEY")
     
-    if not FINE_TUNED_FOR_STORIES:
-        missing_keys.append("FINE_TUNED_FOR_STORIES")
-    if not DEEPSEEK_API_KEY:
-        missing_keys.append("DEEPSEEK_API_KEY")
-    
-    if missing_keys:
-        print(f"✗ Missing API keys: {', '.join(missing_keys)}")
-        print("Please add them to your .env file")
+    if not openai_key and not deepseek_key:
+        print("✗ No API keys configured. Please run configuration setup.")
         return False
     return True
 
 
 def generate_with_openai(system_prompt: str, user_prompt: str, content_type: str = "content") -> str:
-    """
-    Generate content using official OpenAI API.
-    
-    Args:
-        system_prompt (str): System prompt for the model
-        user_prompt (str): User prompt/request
-        content_type (str): Type of content being generated (for logging)
-        
-    Returns:
-        str: Generated content or None if failed
-    """
+    """Generate content using official OpenAI API."""
     try:
         print(f"✓ Attempting {content_type} generation with Official OpenAI API...")
+        
+        clients = initialize_api_clients()
+        if 'openai' not in clients:
+            print("✗ OpenAI client not configured")
+            return None
         
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
-    
-
-        completion = openai_client.chat.completions.create(
-            model=os.getenv("OPENAI_FINE_TUNED_MODEL_ID"),  # <-- lowercase ID
+        
+        model_id = get_config("openai_model_id", "gpt-4o-mini")
+        completion = clients['openai'].chat.completions.create(
+            model=model_id,
             messages=messages,
             temperature=0.7
         )
-
-
         
         result = completion.choices[0].message.content
         print(f"✓ Official OpenAI {content_type} generation successful!")
@@ -91,21 +78,16 @@ def generate_with_openai(system_prompt: str, user_prompt: str, content_type: str
 
 
 def generate_with_deepseek(system_prompt: str, user_prompt: str, content_type: str = "content") -> str:
-    """
-    Generate content using DeepSeek API with OpenAI SDK format.
-    
-    Args:
-        system_prompt (str): System prompt for the model
-        user_prompt (str): User prompt/request
-        content_type (str): Type of content being generated (for logging)
-        
-    Returns:
-        str: Generated content or None if failed
-    """
+    """Generate content using DeepSeek API."""
     try:
         print(f"✓ Attempting {content_type} generation with DeepSeek...")
         
-        response = deepseek_client.chat.completions.create(
+        clients = initialize_api_clients()
+        if 'deepseek' not in clients:
+            print("✗ DeepSeek client not configured")
+            return None
+        
+        response = clients['deepseek'].chat.completions.create(
             model="deepseek-chat",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -125,24 +107,18 @@ def generate_with_deepseek(system_prompt: str, user_prompt: str, content_type: s
 
 
 def generate_with_lmstudio(system_prompt: str, user_prompt: str, content_type: str = "content") -> str:
-    """
-    Generate content using LMStudio as final fallback.
-    
-    Args:
-        system_prompt (str): System prompt for the model
-        user_prompt (str): User prompt/request
-        content_type (str): Type of content being generated (for logging)
-        
-    Returns:
-        str: Generated content or None if failed
-    """
+    """Generate content using LMStudio as final fallback."""
     try:
+        model_name = get_config("lmstudio_model_name")
+        if not model_name:
+            print("✗ LMStudio not configured")
+            return None
+            
         print(f"✓ Attempting {content_type} generation with LMStudio (final fallback)...")
         
         # Give the server some time if it was just started
         time.sleep(2)
         
-        model_name = os.getenv("LMSTUDIO_MODEL_NAME")
         model = lms.llm(model_name)
         
         messages = {
@@ -165,18 +141,8 @@ def generate_with_lmstudio(system_prompt: str, user_prompt: str, content_type: s
 
 
 def generate_content_with_fallback(system_prompt: str, user_prompt: str, content_type: str = "content") -> str:
-    """
-    Generate content with Official OpenAI primary, DeepSeek secondary, and LMStudio final fallback.
-    
-    Args:
-        system_prompt (str): System prompt for the model
-        user_prompt (str): User prompt/request
-        content_type (str): Type of content being generated (for logging)
-        
-    Returns:
-        str: Generated content or None if all methods fail
-    """
-    # Try Official OpenAI first
+    """Generate content with automatic fallback between configured APIs."""
+    # Try APIs in order of configuration
     result = generate_with_openai(system_prompt, user_prompt, content_type)
     
     if result is not None:
@@ -197,29 +163,30 @@ def generate_content_with_fallback(system_prompt: str, user_prompt: str, content
         return result
     
     # If all methods fail
-    print(f"✗ All methods (OpenAI, DeepSeek, LMStudio) failed for {content_type} generation!")
+    print(f"✗ All methods failed for {content_type} generation!")
     return None
 
 
 def generate_text_content(custom_title=None):
-    """
-    Generate title and story content using Official OpenAI (primary), DeepSeek (secondary), and LMStudio (fallback).
-    
-    Args:
-        custom_title (str, optional): Custom title to use instead of generating one
-        
-    Returns:
-        tuple: (title, story, output_folder)
-    """
+    """Generate title and story content using configured APIs."""
     try:
         # Validate API keys first
         if not validate_api_keys():
             print("✗ Cannot proceed without valid API keys")
             return None, None, None
         
-        # File paths for system prompts
-        title_prompt_path = "System_Title_Prompt.txt"
-        story_prompt_path = "Story_System_Prompt.txt"
+        # Get configured paths
+        title_prompt_path = get_config("title_prompt_path", "System_Title_Prompt.txt")
+        story_prompt_path = get_config("story_prompt_path", "System_Story_Prompt.txt")
+        
+        # Check if prompt files exist
+        if not os.path.exists(title_prompt_path):
+            print(f"✗ Title prompt file not found: {title_prompt_path}")
+            return None, None, None
+            
+        if not os.path.exists(story_prompt_path):
+            print(f"✗ Story prompt file not found: {story_prompt_path}")
+            return None, None, None
         
         print("✓ Reading system prompts...")
         system_prompt_title = read_file(title_prompt_path)
@@ -242,7 +209,11 @@ def generate_text_content(custom_title=None):
                 return None, None, None
         
         # Create output folder for this run
-        output_base = "/media/lord/One Touch/DaVinci Vids"
+        output_base = get_config("output_path", os.path.expanduser("~/DaVinci Vids"))
+        
+        # Ensure output base directory exists
+        os.makedirs(output_base, exist_ok=True)
+        
         output_folder = create_output_folder(output_base, response_title)
         write_text_file(output_folder, "title.txt", response_title)
         print("✓ Title saved successfully")
@@ -270,16 +241,7 @@ def generate_text_content(custom_title=None):
 
 
 def generate_all_stories_bulk(num_runs: int, custom_titles: list = None):
-    """
-    Generate all stories in bulk before processing audio/video.
-    
-    Args:
-        num_runs (int): Number of stories to generate
-        custom_titles (list, optional): List of custom titles to use
-        
-    Returns:
-        list: List of tuples (title, story, output_folder) for successful generations
-    """
+    """Generate all stories in bulk before processing audio/video."""
     print(f"\n{'='*50}")
     print(f"🚀 BULK STORY GENERATION PHASE")
     print(f"Generating {num_runs} stories...")
