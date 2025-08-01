@@ -66,6 +66,74 @@ def format_time_ass(seconds):
     centiseconds = int((seconds * 100) % 100)
     return f"{hours}:{minutes:02d}:{secs:02d}.{centiseconds:02d}"
 
+"""
+transcription_integration.py
+Enhanced transcription module with option to include title in subtitles.
+Uses configuration management for fonts directory.
+"""
+import whisper
+import os
+import shutil
+import json
+import re
+import subprocess
+import traceback
+import random
+from config_manager import get_config
+from utils import get_audio_duration
+
+def choose_random_font(fonts_dir=None):
+    """
+    Randomly selects and returns the FONT NAME from the configured fonts folder.
+    """
+    if not fonts_dir:
+        fonts_dir = get_config("fonts_dir")
+    
+    if not fonts_dir or not os.path.exists(fonts_dir):
+        print("⚠️ No custom fonts directory configured, using Arial")
+        return "Arial"
+    
+    fonts = [f for f in os.listdir(fonts_dir) if os.path.isfile(os.path.join(fonts_dir, f))]
+    
+    if not fonts:
+        print("⚠️ No font files found in configured directory.")
+        return "Arial"
+    
+    chosen_file = random.choice(fonts)
+    # Extract font name (without extension)
+    font_name = os.path.splitext(chosen_file)[0]
+    print(f"🎨 Random font selected: {font_name}")
+    return font_name
+
+def get_title_from_folder(output_folder: str) -> str:
+    """Read the title from title.txt if it exists."""
+    title_file = os.path.join(output_folder, "title.txt")
+    if os.path.exists(title_file):
+        with open(title_file, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    return None
+
+def ends_with_punctuation(text):
+    """Check if text ends with punctuation marks."""
+    punctuation_marks = ['.', '!', '?', ';', ':']
+    return any(text.rstrip().endswith(mark) for mark in punctuation_marks)
+
+def write_punctuation_group(file_handle, group, color_style):
+    """Write a group of words with the same color."""
+    for item in group:
+        start_time_ass = format_time_ass(item['start'])
+        end_time_ass = format_time_ass(item['end'])
+        text = item['text'].strip()
+        file_handle.write(f"Dialogue: 0,{start_time_ass},{end_time_ass},{color_style},,0,0,0,,{text}\n")
+
+def format_time_ass(seconds):
+    """Convert seconds to ASS time format (H:MM:SS.CC)."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    centiseconds = int((seconds * 100) % 100)
+    return f"{hours}:{minutes:02d}:{secs:02d}.{centiseconds:02d}"
+
 def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, include_title_in_ass: bool = False, model_size: str = "tiny") -> dict:
     """
     Transcribe video file and create both ASS (for styling) and SRT (for compatibility) subtitle files.
@@ -160,6 +228,8 @@ def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, in
             
             # Collect word groups
             punctuation_groups = []
+            found_first_sentence_end = include_title_in_ass  # If including title, we don't need to skip
+            
             for segment in segments:
                 if "words" in segment and segment["words"]:
                     words = segment["words"]
@@ -170,6 +240,19 @@ def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, in
                         combined_text = current_word
                         end_time = words[i]["end"]
                         
+                        # Check if we've found the first sentence-ending punctuation
+                        if not found_first_sentence_end:
+                            # Check if current word ends with sentence-ending punctuation
+                            if ends_with_punctuation(current_word):
+                                found_first_sentence_end = True
+                                i += 1
+                                continue  # Skip this word but process the rest
+                            else:
+                                # Skip this word and continue looking
+                                i += 1
+                                continue
+                        
+                        # Only process words after we've found the first sentence end
                         # Combine short words with next word for better readability
                         if len(current_word) <= 3 and i + 1 < len(words):
                             combined_text += ' ' + words[i + 1]["word"].strip()
@@ -185,6 +268,15 @@ def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, in
                         })
                 else:
                     # Fallback to segment-level timestamps
+                    if not found_first_sentence_end:
+                        # Check if segment text ends with sentence-ending punctuation
+                        if ends_with_punctuation(segment["text"].strip()):
+                            found_first_sentence_end = True
+                            continue  # Skip this segment
+                        else:
+                            continue  # Skip this segment
+                    
+                    # Only add segments after finding first sentence end
                     punctuation_groups.append({
                         'text': segment["text"].strip(),
                         'start': segment["start"],
@@ -460,65 +552,6 @@ def add_transcription_to_single_story_pipeline(output_folder: str, create_subtit
                 print("   - Title included in ASS")
             else:
                 print("   - Title NOT included in ASS")
-    else:
-        print("❌ Transcription step failed!")
-    
-    return transcription_resultsprint(f"\n{'='*50}")
-    print("🎤 BULK TRANSCRIPTION PHASE")
-    print(f"Processing transcription for {len(stories_data)} stories...")
-    if use_ass:
-        print("🎨 Will create viral-style ASS subtitles")
-    if include_title:
-        print("📝 Will include story titles in subtitles")
-    print(f"{'='*50}")
-
-    successful_transcriptions = []
-    for i, (title, story, output_folder) in enumerate(stories_data, 1):
-        print(f"\n🎙️ Processing transcription {i}/{len(stories_data)}: {title}")
-        print("-" * 40)
-        try:
-            transcription_results = process_transcription_for_story(
-                output_folder, create_subtitled_videos, use_ass, include_title
-            )
-            if transcription_results['success']:
-                successful_transcriptions.append((title, story, output_folder, transcription_results))
-                print(f"✅ Transcription {i} completed: {title}")
-                if use_ass:
-                    print(f"  🎨 ASS subtitles: subtitles.ass ({transcription_results.get('font_used', 'default')} font)")
-                print(f"  📺 SRT subtitles: subtitles.srt")
-                if transcription_results['subtitled_video']:
-                    print(f"  🎬 Subtitled video: {os.path.basename(transcription_results['subtitled_video'])}")
-            else:
-                print(f"❌ Transcription {i} failed: {title}")
-        except Exception as e:
-            print(f"❌ Unhandled error in transcription for '{title}': {e}")
-            traceback.print_exc()
-
-    print(f"\n{'='*50}")
-    print("📊 BULK TRANSCRIPTION COMPLETE")
-    print(f"Successfully processed: {len(successful_transcriptions)}/{len(stories_data)} transcriptions")
-    print(f"{'='*50}")
-    return successful_transcriptions
-
-# --- Integration Functions ---
-
-def add_transcription_to_single_story_pipeline(output_folder: str, create_subtitled_video: bool = True, 
-                                              use_ass: bool = False, include_title: bool = False):
-    """
-    Add transcription step to the single story pipeline.
-    """
-    print("\n🎤 Adding transcription to pipeline...")
-    transcription_results = process_transcription_for_story(
-        output_folder, create_subtitled_video, use_ass, include_title
-    )
-    
-    if transcription_results['success']:
-        print("✅ Transcription step completed successfully!")
-        if use_ass:
-            print("🎨 Created ASS subtitles with random font and alternating colors")
-        print("📺 Created SRT subtitles for compatibility")
-        if transcription_results.get('title_included'):
-            print("📝 Title included in subtitles")
     else:
         print("❌ Transcription step failed!")
     
