@@ -56,18 +56,19 @@ def get_transcription_preferences():
     
     choice = input("\nChoose transcription option (1, 2, 3, or 4): ").strip()
     
-    # Check if user wants to include title in subtitles
-    include_title = False
-    if choice in ["1", "2", "3"]:
-        include_title_choice = input("\nInclude story title in subtitles? (y/n) [n]: ").strip().lower()
-        include_title = include_title_choice == 'y'
+    # Check if user wants to include title in ASS subtitles
+    include_title_in_ass = False
+    if choice == "3":
+        include_title_choice = input("\nInclude story title in ASS subtitles? (y/n) [n]: ").strip().lower()
+        include_title_in_ass = include_title_choice == 'y'
+        print("Note: Title will always be included in SRT subtitles")
     
     if choice == "1":
-        return True, False, False, include_title  # transcribe, don't embed, no ASS
+        return True, False, False, False  # transcribe, don't embed, no ASS, no title in ASS
     elif choice == "2":
-        return True, True, False, include_title   # transcribe and embed SRT
+        return True, True, False, False   # transcribe and embed SRT
     elif choice == "3":
-        return True, True, True, include_title    # transcribe and embed ASS
+        return True, True, True, include_title_in_ass    # transcribe and embed ASS
     else:
         return False, False, False, False # skip transcription
 
@@ -131,7 +132,7 @@ def process_video_for_all_stories(stories_data):
 
 
 def run_bulk_pipeline(num_runs: int, custom_titles: list = None, enable_transcription: bool = True, 
-                      create_subtitled_videos: bool = False, use_ass: bool = False, include_title: bool = False):
+                      create_subtitled_videos: bool = False, use_ass: bool = False, include_title_in_ass: bool = False):
     """
     Execute the complete bulk pipeline: Stories → Audio → Video → Transcription.
     """
@@ -170,7 +171,7 @@ def run_bulk_pipeline(num_runs: int, custom_titles: list = None, enable_transcri
     # Phase 4: Process transcription for all stories (if enabled)
     transcription_data = []
     if enable_transcription and video_data:
-        transcription_data = process_transcription_bulk(video_data, create_subtitled_videos, use_ass, include_title)
+        transcription_data = process_transcription_bulk(video_data, create_subtitled_videos, use_ass, include_title_in_ass)
     
     return {
         'stories': len(stories_data),
@@ -182,7 +183,7 @@ def run_bulk_pipeline(num_runs: int, custom_titles: list = None, enable_transcri
 
 
 def run_single_story(custom_title=None, enable_transcription=True, create_subtitled_video=False, 
-                     use_ass=False, include_title=False):
+                     use_ass=False, include_title_in_ass=False):
     """
     Execute one complete run of the content generation pipeline with transcription.
     """
@@ -230,7 +231,7 @@ def run_single_story(custom_title=None, enable_transcription=True, create_subtit
             if enable_transcription:
                 pbar.set_postfix_str(steps[3])
                 transcription_results = add_transcription_to_single_story_pipeline(
-                    output_folder, create_subtitled_video, use_ass, include_title
+                    output_folder, create_subtitled_video, use_ass, include_title_in_ass
                 )
                 pbar.update(1)
                 
@@ -242,20 +243,23 @@ def run_single_story(custom_title=None, enable_transcription=True, create_subtit
             # Print summary of generated files
             print("\n📁 Generated files:")
             print(f"   📝 Story: story.txt")
+            print(f"   📝 Title: title.txt")
             print(f"   🎵 Audio: gene_audio.wav")
-            print(f"   🎬 Video: final_output.mp4")
+            print(f"   🎬 Video: gene_video.mp4", end="")
+            if enable_transcription and create_subtitled_video and transcription_results and transcription_results.get('subtitled_video'):
+                print(" (with embedded subtitles)")
+            else:
+                print()
+            
             if enable_transcription:
-                print(f"   📄 Transcript: transcript.txt")
                 if transcription_results and transcription_results.get('srt_file'):
-                    srt_filename = os.path.basename(transcription_results['srt_file'])
-                    if 'synced' in srt_filename:
-                        print(f"   📺 Subtitles: {srt_filename} (speed-adjusted)")
-                    else:
-                        print(f"   📺 Subtitles: {srt_filename}")
+                    print(f"   📺 SRT Subtitles: subtitles.srt (title always included)")
                 if use_ass and transcription_results and transcription_results.get('ass_file'):
-                    print(f"   🎨 ASS Subtitles: {os.path.basename(transcription_results['ass_file'])}")
-                if create_subtitled_video and transcription_results and transcription_results.get('subtitled_video'):
-                    print(f"   🎬 Subtitled Video: final_output_with_subtitles.mp4")
+                    print(f"   🎨 ASS Subtitles: subtitles.ass", end="")
+                    if include_title_in_ass:
+                        print(" (title included)")
+                    else:
+                        print(" (title NOT included)")
             
             return True
 
@@ -305,9 +309,9 @@ if __name__ == "__main__":
     custom_titles = get_custom_titles(num_runs)
     
     # Get transcription preferences
-    enable_transcription, create_subtitled_videos, use_ass, include_title = False, False, False, False
+    enable_transcription, create_subtitled_videos, use_ass, include_title_in_ass = False, False, False, False
     if whisper_available:
-        enable_transcription, create_subtitled_videos, use_ass, include_title = get_transcription_preferences()
+        enable_transcription, create_subtitled_videos, use_ass, include_title_in_ass = get_transcription_preferences()
     else:
         print("\n⚠️ Transcription will be skipped (Whisper not available)")
     
@@ -332,7 +336,7 @@ if __name__ == "__main__":
     if use_bulk_mode:
         # BULK MODE: Generate all content in phases
         results = run_bulk_pipeline(num_runs, custom_titles, enable_transcription, 
-                                   create_subtitled_videos, use_ass, include_title)
+                                   create_subtitled_videos, use_ass, include_title_in_ass)
         
         print(f"\n{'='*60}")
         print("📊 FINAL PIPELINE SUMMARY")
@@ -363,7 +367,7 @@ if __name__ == "__main__":
             # Use custom title if available, otherwise None for auto-generation
             current_title = custom_titles[i] if custom_titles else None
             
-            if run_single_story(current_title, enable_transcription, create_subtitled_videos, use_ass, include_title):
+            if run_single_story(current_title, enable_transcription, create_subtitled_videos, use_ass, include_title_in_ass):
                 successful_runs += 1
             
             if i < num_runs - 1:  # Not the last run
@@ -397,8 +401,9 @@ if __name__ == "__main__":
             print("• ASS files with viral-style animated subtitles")
         if create_subtitled_videos:
             print("• Videos with embedded subtitles for direct sharing")
-        if include_title:
-            print("• Story titles included in subtitles")
+        if include_title_in_ass and use_ass:
+            print("• Story titles included in ASS subtitles")
+        print("• Story titles always included in SRT subtitles")
     
     if use_bulk_mode:
         print(f"\n📈 Bulk Processing Benefits:")
