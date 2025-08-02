@@ -9,6 +9,11 @@ import lmstudio as lms
 from openai import OpenAI
 
 from config_manager import get_config
+
+
+def clear_terminal():
+    """Clear the terminal screen for cleaner output."""
+    os.system('cls' if os.name == 'nt' else 'clear')
 from utils import (
     read_file, 
     create_output_folder, 
@@ -29,7 +34,7 @@ def initialize_api_clients():
     if deepseek_key:
         clients['deepseek'] = OpenAI(
             api_key=deepseek_key,
-            base_url="https://api.chatanywhere.tech/v1"
+            base_url="https://api.deepseek.com"
         )
     
     return clients
@@ -87,8 +92,10 @@ def generate_with_deepseek(system_prompt: str, user_prompt: str, content_type: s
             print("✗ DeepSeek client not configured")
             return None
         
+        model_name = get_config("deepseek_model_name", "deepseek-chat")
+        
         response = clients['deepseek'].chat.completions.create(
-            model="deepseek-chat",
+            model=model_name,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -177,7 +184,7 @@ def generate_text_content(custom_title=None):
         
         # Get configured paths
         title_prompt_path = get_config("title_prompt_path", "System_Title_Prompt.txt")
-        story_prompt_path = get_config("story_prompt_path", "System_Story_Prompt.txt")
+        story_prompt_path = get_config("story_prompt_path", "Story_System_Prompt.txt")
         
         # Check if prompt files exist
         if not os.path.exists(title_prompt_path):
@@ -220,10 +227,11 @@ def generate_text_content(custom_title=None):
 
         # Generate story using the title
         story_user_content = response_title 
-        response_story = generate_content_with_fallback(
+        response_story = generate_content_with_provider(
             system_prompt_story, 
             story_user_content, 
-            "story"
+            "story",
+            _active_provider
         )
         
         if response_story is None:
@@ -240,14 +248,34 @@ def generate_text_content(custom_title=None):
         return None, None, None
 
 
-def generate_all_stories_bulk(num_runs: int, custom_titles: list = None):
-    """Generate all stories in bulk before processing audio/video."""
-    print(f"\n{'='*50}")
+def generate_all_stories_bulk(num_runs: int, custom_titles: list = None, ai_provider: str = None, use_batch: bool = False):
+    """
+    Generate all stories in bulk before processing audio/video.
+    
+    Args:
+        num_runs: Number of stories to generate
+        custom_titles: Optional list of custom titles
+        ai_provider: Which AI to use ('openai', 'deepseek', 'lmstudio')
+        use_batch: Whether to use batch API (OpenAI only)
+    """
+    # If using OpenAI batch mode, delegate to batch processor
+    if ai_provider == 'openai' and use_batch:
+        from batch_text_generator import generate_all_stories_batch
+        return generate_all_stories_batch(num_runs, custom_titles)
+    
+    # Regular sequential processing
+    clear_terminal()
+    print(f"{'='*50}")
     print(f"🚀 BULK STORY GENERATION PHASE")
+    print(f"Using {ai_provider.upper() if ai_provider else 'configured'} API")
     print(f"Generating {num_runs} stories...")
     print(f"{'='*50}")
     
     successful_stories = []
+    
+    # Set the active provider for this session
+    global _active_provider
+    _active_provider = ai_provider
     
     for i in range(num_runs):
         print(f"\n📝 Generating story {i+1}/{num_runs}")
@@ -269,3 +297,18 @@ def generate_all_stories_bulk(num_runs: int, custom_titles: list = None):
     print(f"{'='*50}")
     
     return successful_stories
+
+# Global variable to track active provider
+_active_provider = None
+
+def generate_content_with_provider(system_prompt: str, user_prompt: str, content_type: str = "content", provider: str = None) -> str:
+    """Generate content with specific provider or fallback chain."""
+    if provider == 'openai' or (not provider and _active_provider == 'openai'):
+        return generate_with_openai(system_prompt, user_prompt, content_type)
+    elif provider == 'deepseek' or (not provider and _active_provider == 'deepseek'):
+        return generate_with_deepseek(system_prompt, user_prompt, content_type)
+    elif provider == 'lmstudio' or (not provider and _active_provider == 'lmstudio'):
+        return generate_with_lmstudio(system_prompt, user_prompt, content_type)
+    else:
+        # Use fallback chain
+        return generate_content_with_fallback(system_prompt, user_prompt, content_type)
