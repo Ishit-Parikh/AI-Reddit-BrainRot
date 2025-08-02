@@ -1,4 +1,4 @@
-# FRBV Content Generation Pipeline
+# Brain Rot Content Generation Pipeline
 
 🎬 An automated pipeline for generating AI-powered stories with audio narration, video backgrounds, and professional subtitles.
 
@@ -16,7 +16,7 @@
 
 ## 🌟 Overview
 
-FRBV (Fast Reddit Background Videos) is a comprehensive content generation pipeline that automates the entire process of creating viral-style videos. It generates stories using AI, converts them to speech, combines them with background videos, and adds professional subtitles.
+Brain Rot (Fast Reddit Background Videos) is a comprehensive content generation pipeline that automates the entire process of creating viral-style videos. It generates stories using AI, converts them to speech, combines them with background videos, and adds professional subtitles.
 
 ### Key Features:
 - 🤖 **Multiple AI Provider Support**: OpenAI, DeepSeek, and LMStudio
@@ -58,8 +58,8 @@ python-dotenv
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/frbv-pipeline.git
-   cd frbv-pipeline
+   git clone https://github.com/yourusername/Brain Rot-pipeline.git
+   cd Brain Rot-pipeline
    ```
 
 2. **Install Python dependencies**
@@ -84,8 +84,8 @@ python-dotenv
 ### First-Time Setup
 
 The pipeline uses a configuration wizard on first run. Configuration is saved in:
-- `~/.frbv_pipeline/config.json` - Non-sensitive settings
-- `~/.frbv_pipeline/secrets.json` - API keys (encrypted permissions)
+- `~/.Brain Rot_pipeline/config.json` - Non-sensitive settings
+- `~/.Brain Rot_pipeline/secrets.json` - API keys (encrypted permissions)
 
 ### Required Configuration Fields
 
@@ -246,7 +246,7 @@ Story_Title/
 
 To reset all settings:
 ```bash
-rm -rf ~/.frbv_pipeline
+rm -rf ~/.Brain Rot_pipeline
 ```
 
 Then run the program to reconfigure.

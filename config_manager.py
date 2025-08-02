@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 # Configuration file location (in user's home directory for cross-platform compatibility)
-CONFIG_DIR = Path.home() / ".frbv_pipeline"
+CONFIG_DIR = Path.home() / ".brainrot_pipeline"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 SECRETS_FILE = CONFIG_DIR / "secrets.json"  # Separate file for sensitive data
 
@@ -559,7 +559,7 @@ def initialize_config() -> Dict[str, Any]:
         manager.load_config()
         
         # Check if user wants to update
-        print("\n🎬 FRBV Pipeline")
+        print("\n🎬 Brain Rot Pipeline")
         print("Configuration loaded from previous run.")
         
         update = input("\nWould you like to update settings? (y/n) [n]: ").strip().lower()

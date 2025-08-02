@@ -448,9 +448,9 @@ def check_lmstudio_needed() -> bool:
 
 
 def main():
-    """Main entry point for the FRBV pipeline."""
+    """Main entry point for the Brain Rot pipeline."""
     clear_terminal()
-    print("🎬 Enhanced FRBV Content Generation Pipeline")
+    print("🎬 Enhanced Brain Rot Content Generation Pipeline")
     print("=" * 60)
     
     # Initialize configuration

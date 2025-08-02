@@ -1,6 +1,6 @@
 """
 utils.py
-Common utility functions used across the FRBV pipeline.
+Common utility functions used across the Brain Rot pipeline.
 """
 import os
 import re
