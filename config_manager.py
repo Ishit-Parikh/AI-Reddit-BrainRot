@@ -148,6 +148,7 @@ class ConfigManager:
         
     def update_wizard(self):
         """Interactive wizard to update existing configuration."""
+        os.system('cls' if os.name == 'nt' else 'clear')
         print("\n" + "="*60)
         print("🔧 Update Configuration")
         print("="*60)
@@ -352,6 +353,8 @@ class ConfigManager:
         
         self.save_config()
         print("✅ AI provider configured!")
+        
+    def _update_audio_fonts(self):
         """Update audio and font settings."""
         print("\n🎵 Update Audio/Font Settings (press Enter to keep current)")
         
