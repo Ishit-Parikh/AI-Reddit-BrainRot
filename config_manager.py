@@ -338,7 +338,7 @@ class ConfigManager:
             if key:
                 self.secrets['FINE_TUNED_FOR_STORIES'] = key
                 model = input("Model ID [gpt-4o-mini]: ").strip()
-                self.config['openai_model_id'] = model or "gpt-4o-mini"
+                self.config['openai_model_id'] = model 
         elif choice == '2':
             key = getpass.getpass("DeepSeek API Key: ").strip()
             if key:
