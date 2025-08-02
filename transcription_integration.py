@@ -5,14 +5,10 @@ Uses configuration management for fonts directory.
 """
 import whisper
 import os
-import shutil
-import json
-import re
 import subprocess
 import traceback
 import random
 from config_manager import get_config
-from utils import get_audio_duration
 
 def choose_random_font(fonts_dir=None):
     """
@@ -37,14 +33,6 @@ def choose_random_font(fonts_dir=None):
     print(f"🎨 Random font selected: {font_name}")
     return font_name
 
-def get_title_from_folder(output_folder: str) -> str:
-    """Read the title from title.txt if it exists."""
-    title_file = os.path.join(output_folder, "title.txt")
-    if os.path.exists(title_file):
-        with open(title_file, 'r', encoding='utf-8') as f:
-            return f.read().strip()
-    return None
-
 def ends_with_punctuation(text):
     """Check if text ends with punctuation marks."""
     punctuation_marks = ['.', '!', '?', ';', ':']
@@ -66,75 +54,7 @@ def format_time_ass(seconds):
     centiseconds = int((seconds * 100) % 100)
     return f"{hours}:{minutes:02d}:{secs:02d}.{centiseconds:02d}"
 
-"""
-transcription_integration.py
-Enhanced transcription module with option to include title in subtitles.
-Uses configuration management for fonts directory.
-"""
-import whisper
-import os
-import shutil
-import json
-import re
-import subprocess
-import traceback
-import random
-from config_manager import get_config
-from utils import get_audio_duration
-
-def choose_random_font(fonts_dir=None):
-    """
-    Randomly selects and returns the FONT NAME from the configured fonts folder.
-    """
-    if not fonts_dir:
-        fonts_dir = get_config("fonts_dir")
-    
-    if not fonts_dir or not os.path.exists(fonts_dir):
-        print("⚠️ No custom fonts directory configured, using Arial")
-        return "Arial"
-    
-    fonts = [f for f in os.listdir(fonts_dir) if os.path.isfile(os.path.join(fonts_dir, f))]
-    
-    if not fonts:
-        print("⚠️ No font files found in configured directory.")
-        return "Arial"
-    
-    chosen_file = random.choice(fonts)
-    # Extract font name (without extension)
-    font_name = os.path.splitext(chosen_file)[0]
-    print(f"🎨 Random font selected: {font_name}")
-    return font_name
-
-def get_title_from_folder(output_folder: str) -> str:
-    """Read the title from title.txt if it exists."""
-    title_file = os.path.join(output_folder, "title.txt")
-    if os.path.exists(title_file):
-        with open(title_file, 'r', encoding='utf-8') as f:
-            return f.read().strip()
-    return None
-
-def ends_with_punctuation(text):
-    """Check if text ends with punctuation marks."""
-    punctuation_marks = ['.', '!', '?', ';', ':']
-    return any(text.rstrip().endswith(mark) for mark in punctuation_marks)
-
-def write_punctuation_group(file_handle, group, color_style):
-    """Write a group of words with the same color."""
-    for item in group:
-        start_time_ass = format_time_ass(item['start'])
-        end_time_ass = format_time_ass(item['end'])
-        text = item['text'].strip()
-        file_handle.write(f"Dialogue: 0,{start_time_ass},{end_time_ass},{color_style},,0,0,0,,{text}\n")
-
-def format_time_ass(seconds):
-    """Convert seconds to ASS time format (H:MM:SS.CC)."""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    centiseconds = int((seconds * 100) % 100)
-    return f"{hours}:{minutes:02d}:{secs:02d}.{centiseconds:02d}"
-
-def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, include_title_in_ass: bool = False, model_size: str = "tiny") -> dict:
+def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, include_title_in_ass: bool = False, model_size: str = "small") -> dict:
     """
     Transcribe video file and create both ASS (for styling) and SRT (for compatibility) subtitle files.
     SRT always includes title, ASS includes title only if requested.
@@ -150,16 +70,6 @@ def transcribe_video_to_ass_and_srt(video_file_path: str, output_folder: str, in
     """
     try:
         print(f"🎤 Starting video transcription with Whisper ({model_size} model)...")
-
-        # Get title - always needed for SRT
-        title = get_title_from_folder(output_folder)
-        if title:
-            print(f"📝 Title found: {title}")
-            if include_title_in_ass:
-                print("   Will include title in ASS subtitles")
-            else:
-                print("   Will NOT include title in ASS subtitles")
-            print("   Title will always be included in SRT subtitles")
 
         # Choose random font for ASS styling
         chosen_font = choose_random_font()
