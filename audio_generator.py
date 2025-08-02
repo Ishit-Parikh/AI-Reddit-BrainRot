@@ -41,7 +41,8 @@ def generate_audio_from_story(story: str, output_folder: str) -> None:
             f"--gen_text \"{story.replace('\\', ' ').replace('"', '')}\" "
         )
         os.system(command)
-        
+        os.system('cls' if os.name == 'nt' else 'clear')
+
         # Recursively find any .wav file in output_folder or subfolders
         gene_audio_path = os.path.join(output_folder, 'gene_audio.wav')
         for root, dirs, files in os.walk(output_folder):
