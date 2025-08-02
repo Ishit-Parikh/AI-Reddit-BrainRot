@@ -1,6 +1,6 @@
 """
 config_manager.py
-Configuration management system for the FRBV pipeline.
+Configuration management system for the pipeline.
 Handles first-time setup, persistent storage, and configuration updates.
 """
 import os
@@ -129,6 +129,9 @@ class ConfigManager:
         deepseek_key = getpass.getpass("DeepSeek API Key (hidden): ").strip()
         if deepseek_key:
             self.secrets['DEEPSEEK_API_KEY'] = deepseek_key
+            
+            model_id = input("DeepSeek Model Name [deepseek-chat]: ").strip()
+            self.config['deepseek_model_name'] = model_id or "deepseek-chat"
         
         # LMStudio
         print("\n3. LMStudio (Fallback)")
@@ -155,8 +158,9 @@ class ConfigManager:
             ("3", "Update API keys"),
             ("4", "Update model settings"),
             ("5", "Update audio/font settings"),
-            ("6", "View current configuration"),
-            ("7", "Reset all settings"),
+            ("6", "Remove API keys/models"),
+            ("7", "View current configuration"),
+            ("8", "Reset all settings"),
             ("0", "Continue with current settings")
         ]
         
@@ -176,8 +180,10 @@ class ConfigManager:
         elif choice == "5":
             self._update_audio_fonts()
         elif choice == "6":
-            self._view_config()
+            self._remove_api_configs()
         elif choice == "7":
+            self._view_config()
+        elif choice == "8":
             if input("Are you sure you want to reset all settings? (y/n): ").lower() == 'y':
                 self.setup_wizard()
         
@@ -241,6 +247,11 @@ class ConfigManager:
         if new_val:
             self.config['openai_model_id'] = new_val
         
+        current = self.config.get('deepseek_model_name', 'Not set')
+        new_val = input(f"DeepSeek Model Name [{current}]: ").strip()
+        if new_val:
+            self.config['deepseek_model_name'] = new_val
+        
         current = self.config.get('lmstudio_model_name', 'Not set')
         new_val = input(f"LMStudio Model [{current}]: ").strip()
         if new_val:
@@ -249,7 +260,98 @@ class ConfigManager:
         self.save_config()
         print("✅ Model settings updated!")
     
-    def _update_audio_fonts(self):
+    def _remove_api_configs(self):
+        """Remove API keys and model configurations."""
+        print("\n🗑️ Remove API Configurations")
+        print("-" * 40)
+        
+        # Show current configurations
+        providers = []
+        if self.secrets.get('FINE_TUNED_FOR_STORIES'):
+            providers.append(('1', 'OpenAI', 'FINE_TUNED_FOR_STORIES', 'openai_model_id'))
+        if self.secrets.get('DEEPSEEK_API_KEY'):
+            providers.append(('2', 'DeepSeek', 'DEEPSEEK_API_KEY', 'deepseek_model_name'))
+        if self.config.get('lmstudio_model_name'):
+            providers.append(('3', 'LMStudio', None, 'lmstudio_model_name'))
+        
+        if not providers:
+            print("No API configurations to remove.")
+            input("\nPress Enter to continue...")
+            return
+        
+        print("Current configurations:")
+        for num, name, _, _ in providers:
+            print(f"{num}. {name}")
+        print("0. Cancel")
+        
+        choice = input("\nSelect configuration to remove: ").strip()
+        
+        if choice == '0':
+            return
+        
+        # Find selected provider
+        selected = None
+        for num, name, key, model in providers:
+            if num == choice:
+                selected = (name, key, model)
+                break
+        
+        if not selected:
+            print("Invalid selection.")
+            return
+        
+        name, key, model = selected
+        
+        # Confirm removal
+        if input(f"\nRemove {name} configuration? (y/n): ").lower() != 'y':
+            return
+        
+        # Remove configuration
+        if key:
+            self.secrets.pop(key, None)
+        if model:
+            self.config.pop(model, None)
+        
+        # Save changes
+        self.save_config()
+        print(f"✅ {name} configuration removed!")
+        
+        # Check if at least one AI remains
+        remaining = self.get_available_ai_providers()
+        if not remaining:
+            print("\n⚠️ WARNING: No AI providers configured!")
+            print("You must configure at least one AI provider.")
+            input("\nPress Enter to set up an AI provider...")
+            self._quick_ai_setup()
+    
+    def _quick_ai_setup(self):
+        """Quick setup for at least one AI provider."""
+        print("\n🤖 Quick AI Provider Setup")
+        print("1. OpenAI")
+        print("2. DeepSeek") 
+        print("3. LMStudio")
+        
+        choice = input("\nSelect AI provider to configure: ").strip()
+        
+        if choice == '1':
+            key = getpass.getpass("OpenAI API Key: ").strip()
+            if key:
+                self.secrets['FINE_TUNED_FOR_STORIES'] = key
+                model = input("Model ID [gpt-4o-mini]: ").strip()
+                self.config['openai_model_id'] = model or "gpt-4o-mini"
+        elif choice == '2':
+            key = getpass.getpass("DeepSeek API Key: ").strip()
+            if key:
+                self.secrets['DEEPSEEK_API_KEY'] = key
+                model = input("Model Name [deepseek-chat]: ").strip()
+                self.config['deepseek_model_name'] = model or "deepseek-chat"
+        elif choice == '3':
+            model = input("LMStudio Model Name: ").strip()
+            if model:
+                self.config['lmstudio_model_name'] = model
+        
+        self.save_config()
+        print("✅ AI provider configured!")
         """Update audio and font settings."""
         print("\n🎵 Update Audio/Font Settings (press Enter to keep current)")
         
@@ -298,6 +400,7 @@ class ConfigManager:
         
         print("\n🤖 Model Settings:")
         print(f"  OpenAI model: {self.config.get('openai_model_id', 'Not set')}")
+        print(f"  DeepSeek model: {self.config.get('deepseek_model_name', 'Not set')}")
         print(f"  LMStudio model: {self.config.get('lmstudio_model_name', 'Not set')}")
         
         print("\n🔑 API Keys:")
@@ -319,17 +422,117 @@ class ConfigManager:
         missing = []
         
         # Required paths
-        required_paths = ['videos_path', 'output_path', 'title_prompt_path', 'story_prompt_path']
-        for path_key in required_paths:
-            if not self.config.get(path_key):
-                missing.append(path_key)
+        required_paths = {
+            'videos_path': 'Videos folder path',
+            'output_path': 'Output directory path', 
+            'title_prompt_path': 'Title prompt file',
+            'story_prompt_path': 'Story prompt file',
+            'ref_audio_path': 'Reference audio file',
+            'ref_text_path': 'Reference text file'
+        }
         
-        # At least one API key should be present
-        api_keys = ['FINE_TUNED_FOR_STORIES', 'DEEPSEEK_API_KEY']
-        if not any(self.secrets.get(key) for key in api_keys):
-            missing.append("At least one API key")
+        for path_key, description in required_paths.items():
+            if not self.config.get(path_key):
+                missing.append(description)
+        
+        # Check API configurations
+        ai_configs = []
+        
+        # OpenAI
+        if self.secrets.get('FINE_TUNED_FOR_STORIES'):
+            if not self.config.get('openai_model_id'):
+                missing.append("OpenAI model ID (required when API key is set)")
+            else:
+                ai_configs.append('openai')
+        
+        # DeepSeek
+        if self.secrets.get('DEEPSEEK_API_KEY'):
+            if not self.config.get('deepseek_model_name'):
+                missing.append("DeepSeek model name (required when API key is set)")
+            else:
+                ai_configs.append('deepseek')
+        
+        # LMStudio
+        if self.config.get('lmstudio_model_name'):
+            ai_configs.append('lmstudio')
+        
+        # At least one AI must be configured
+        if not ai_configs:
+            missing.append("At least one AI configuration (OpenAI, DeepSeek, or LMStudio)")
         
         return len(missing) == 0, missing
+    
+    def get_available_ai_providers(self) -> list[str]:
+        """Get list of configured AI providers."""
+        providers = []
+        
+        if self.secrets.get('FINE_TUNED_FOR_STORIES') and self.config.get('openai_model_id'):
+            providers.append('openai')
+        
+        if self.secrets.get('DEEPSEEK_API_KEY') and self.config.get('deepseek_model_name'):
+            providers.append('deepseek')
+            
+        if self.config.get('lmstudio_model_name'):
+            providers.append('lmstudio')
+            
+        return providers
+    
+    def select_ai_provider(self) -> tuple[str, bool]:
+        """
+        Let user select which AI provider to use.
+        Returns: (provider_name, use_batch_api)
+        """
+        providers = self.get_available_ai_providers()
+        
+        if not providers:
+            raise ValueError("No AI providers configured")
+        
+        if len(providers) == 1:
+            # Only one provider, use it
+            provider = providers[0]
+            use_batch = False
+            
+            if provider == 'openai':
+                print("\n🤖 Using OpenAI API")
+                batch_choice = input("Use batch processing? (can take up to 24 hours but more cost-effective) (y/n): ").lower()
+                use_batch = batch_choice == 'y'
+                
+            return provider, use_batch
+        
+        # Multiple providers available
+        print("\n🤖 Multiple AI providers available:")
+        provider_names = {
+            'openai': 'OpenAI API',
+            'deepseek': 'DeepSeek API',
+            'lmstudio': 'LMStudio (Local)'
+        }
+        
+        for i, provider in enumerate(providers, 1):
+            print(f"{i}. {provider_names.get(provider, provider)}")
+        
+        while True:
+            try:
+                choice = int(input("\nSelect AI provider (number): "))
+                if 1 <= choice <= len(providers):
+                    provider = providers[choice - 1]
+                    use_batch = False
+                    
+                    if provider == 'openai':
+                        print("\n📋 OpenAI Processing Options:")
+                        print("1. Sequential API calls (faster for small batches)")
+                        print("2. Batch API calls (cost-effective but can take up to 24 hours)")
+                        
+                        api_choice = input("\nChoose processing method (1 or 2): ").strip()
+                        if api_choice == '2':
+                            use_batch = True
+                            print("\n⚠️ WARNING: Batch processing can take up to 24 HOURS!")
+                            print("   Results will be saved when complete.")
+                    
+                    return provider, use_batch
+                else:
+                    print("Invalid selection. Please try again.")
+            except ValueError:
+                print("Please enter a number.")
 
 
 # Singleton instance
