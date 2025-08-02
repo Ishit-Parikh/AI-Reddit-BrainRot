@@ -148,6 +148,7 @@ def analyze_video_structure(videos_root: str):
     """
     Analyze and report the video folder structure to help users organize their content.
     """
+    os.system('cls' if os.name == 'nt' else 'clear')
     folder_to_videos = get_all_video_files(videos_root)
     
     if not folder_to_videos:
