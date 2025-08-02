@@ -7,3 +7,5 @@ ref_txt.txt
 __pycache__/
 fonts/
 Results/
+batch.py
+deepseek.py
