@@ -485,7 +485,8 @@ def process_transcription_bulk(stories_data: list, create_subtitled_videos: bool
     Process transcription for multiple stories in bulk.
     Always creates SRT files for all stories.
     """
-    print(f"\n{'='*50}")
+    os.system('cls' if os.name == 'nt' else 'clear')  # Clear terminal
+    print(f"{'='*50}")
     print("🎤 BULK TRANSCRIPTION PHASE")
     print(f"Processing transcription for {len(stories_data)} stories...")
     print("📺 SRT files will be created for all stories")
