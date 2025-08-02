@@ -288,5 +288,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 Please report bugs and issues on the GitHub repository with:
 - Error messages
 - Configuration details (without API keys)
-- Steps to reproduce
 - System information
