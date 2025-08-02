@@ -9,11 +9,6 @@ import lmstudio as lms
 from openai import OpenAI
 
 from config_manager import get_config
-
-
-def clear_terminal():
-    """Clear the terminal screen for cleaner output."""
-    os.system('cls' if os.name == 'nt' else 'clear')
 from utils import (
     read_file, 
     create_output_folder, 
@@ -264,7 +259,7 @@ def generate_all_stories_bulk(num_runs: int, custom_titles: list = None, ai_prov
         return generate_all_stories_batch(num_runs, custom_titles)
     
     # Regular sequential processing
-    clear_terminal()
+    os.system('cls' if os.name == 'nt' else 'clear')
     print(f"{'='*50}")
     print(f"🚀 BULK STORY GENERATION PHASE")
     print(f"Using {ai_provider.upper() if ai_provider else 'configured'} API")
