@@ -69,38 +69,50 @@ class ConfigManager:
         print("-" * 40)
         
         # Videos folder
-        default_videos = os.path.join(os.getcwd(), "Videos")
-        videos_path = input(f"Path to background videos folder [{default_videos}]: ").strip()
-        self.config['videos_path'] = videos_path or default_videos
+        videos_path = input("Path to background videos folder: ").strip()
+        if not videos_path:
+            print("❌ Videos folder path is required.")
+            return self.setup_wizard()
+        self.config['videos_path'] = videos_path
         
         # Output folder
-        default_output = os.path.join(os.path.expanduser("~"), "DaVinci Vids")
-        output_path = input(f"Path to output folder [{default_output}]: ").strip()
-        self.config['output_path'] = output_path or default_output
+        output_path = input("Path to output folder: ").strip()
+        if not output_path:
+            print("❌ Output folder path is required.")
+            return self.setup_wizard()
+        self.config['output_path'] = output_path
         
         # System prompts
         print("\n📝 SYSTEM PROMPTS")
         print("-" * 40)
         
-        default_title_prompt = "System_Title_Prompt.txt"
-        title_prompt = input(f"Path to title prompt file [{default_title_prompt}]: ").strip()
-        self.config['title_prompt_path'] = title_prompt or default_title_prompt
+        title_prompt = input("Path to title prompt file: ").strip()
+        if not title_prompt:
+            print("❌ Title prompt file path is required.")
+            return self.setup_wizard()
+        self.config['title_prompt_path'] = title_prompt
         
-        default_story_prompt = "Story_System_Prompt.txt"
-        story_prompt = input(f"Path to story prompt file [{default_story_prompt}]: ").strip()
-        self.config['story_prompt_path'] = story_prompt or default_story_prompt
+        story_prompt = input("Path to story prompt file: ").strip()
+        if not story_prompt:
+            print("❌ Story prompt file path is required.")
+            return self.setup_wizard()
+        self.config['story_prompt_path'] = story_prompt
         
         # Audio reference files
         print("\n🎵 AUDIO CONFIGURATION")
         print("-" * 40)
         
-        default_ref_audio = "ref_audio.mp3"
-        ref_audio = input(f"Path to reference audio file [{default_ref_audio}]: ").strip()
-        self.config['ref_audio_path'] = ref_audio or default_ref_audio
+        ref_audio = input("Path to reference audio file: ").strip()
+        if not ref_audio:
+            print("❌ Reference audio file path is required.")
+            return self.setup_wizard()
+        self.config['ref_audio_path'] = ref_audio
         
-        default_ref_text = "ref_txt.txt"
-        ref_text = input(f"Path to reference text file [{default_ref_text}]: ").strip()
-        self.config['ref_text_path'] = ref_text or default_ref_text
+        ref_text = input("Path to reference text file: ").strip()
+        if not ref_text:
+            print("❌ Reference text file path is required.")
+            return self.setup_wizard()
+        self.config['ref_text_path'] = ref_text
         
         # Fonts directory (optional)
         print("\n🎨 FONTS CONFIGURATION (Optional)")
