@@ -200,10 +200,11 @@ def generate_text_content(custom_title=None):
             response_title = custom_title
         else:
             title_prompt = "Generate a creative title for a story"
-            response_title = generate_content_with_fallback(
+            response_title = generate_content_with_provider(
                 system_prompt_title, 
                 title_prompt, 
-                "title"
+                "title",
+                _active_provider
             )
             
             if response_title is None:
