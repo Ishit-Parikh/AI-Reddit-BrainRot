@@ -29,11 +29,6 @@ def write_text_file(folder: str, filename: str, content: str) -> None:
         f.write(content)
 
 
-def get_random_temperature(min_temp: float = 0.3, max_temp: float = 1.2) -> float:
-    """Return a random temperature value for model response."""
-    return round(random.uniform(min_temp, max_temp), 2)
-
-
 def silent_system(command: str) -> tuple:
     """Run a shell command and return (return_code, stdout, stderr)."""
     try:
