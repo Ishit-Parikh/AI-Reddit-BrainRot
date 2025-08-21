@@ -20,7 +20,7 @@ def initialize_api_clients():
     clients = {}
     
     # Initialize OpenAI client if configured
-    openai_key = get_config("FINE_TUNED_FOR_STORIES")
+    openai_key = get_config("OPENAI_API_KEY")
     if openai_key:
         clients['openai'] = OpenAI(api_key=openai_key)
     
@@ -37,7 +37,7 @@ def initialize_api_clients():
 
 def validate_api_keys():
     """Validate that at least one API key is configured."""
-    openai_key = get_config("FINE_TUNED_FOR_STORIES")
+    openai_key = get_config("OPENAI_API_KEY")
     deepseek_key = get_config("DEEPSEEK_API_KEY")
     
     if not openai_key and not deepseek_key:
