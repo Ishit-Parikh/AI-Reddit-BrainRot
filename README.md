@@ -1,291 +1,310 @@
-# Brain Rot Content Generation Pipeline
+# BrainRot Content Generation Pipeline
 
-🎬 An automated pipeline for generating AI-powered stories with audio narration, video backgrounds, and professional subtitles.
+🎬 **An automated pipeline for generating AI-powered viral-style videos with professional audio narration, background videos, and animated subtitles.**
 
-## 📋 Table of Contents
-- [Overview](#overview)
-- [Features](#features)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [AI Provider Setup](#ai-provider-setup)
-- [Usage](#usage)
-- [Batch Processing](#batch-processing)
-- [Output Structure](#output-structure)
-- [Troubleshooting](#troubleshooting)
+---
 
-## 🌟 Overview
+## 🌟 What This Project Does
 
-Brain Rot (Fast Reddit Background Videos) is a comprehensive content generation pipeline that automates the entire process of creating viral-style videos. It generates stories using AI, converts them to speech, combines them with background videos, and adds professional subtitles.
+BrainRot is a comprehensive content generation pipeline that automates the entire process of creating engaging viral-style videos. The pipeline works in four main phases:
 
-### Key Features:
-- 🤖 **Multiple AI Provider Support**: OpenAI, DeepSeek, and LMStudio
-- 📦 **Batch Processing**: Process hundreds of stories with OpenAI's batch API (up to 24 hours)
-- 🎙️ **Voice Cloning**: Uses F5-TTS for natural-sounding narration
-- 🎬 **Smart Video Selection**: Intelligently selects and combines background videos
-- 📝 **Professional Subtitles**: Both SRT and ASS formats with viral-style animations
-- ⚡ **Hardware Acceleration**: Supports VAAPI (AMD) and NVENC (NVIDIA)
-- 🔧 **Plug-and-Play**: One-time configuration that persists across runs
+### **Phase 1: Story Generation**
+- Uses AI providers (OpenAI, DeepSeek, or LMStudio) to generate creative titles and compelling stories
+- Supports custom titles or AI-generated ones
+- Batch processing available for generating hundreds of stories at once
 
-## 📋 Requirements
+### **Phase 2: Audio Narration**
+- Converts generated stories into natural-sounding speech using F5-TTS
+- Voice cloning capability using your own reference audio
+- Produces high-quality WAV audio files for video integration
 
-### System Requirements
-- Python 3.8 or higher
-- FFmpeg installed and in PATH
-- At least 8GB RAM
-- GPU recommended for video processing (AMD/NVIDIA)
+### **Phase 3: Video Creation**
+- Automatically selects and combines background videos with generated audio
+- Smart video selection and trimming to match audio length
+- Hardware-accelerated processing (VAAPI for AMD, NVENC for NVIDIA)
+- Speed optimization for perfect audio-video synchronization
 
-### Python Dependencies
-```bash
-moviepy==1.0.3
-lmstudio
-openai
-openai-whisper
-python-dotenv
+### **Phase 4: Subtitle Generation (Optional)**
+- **SRT Subtitles**: Standard format compatible with all video players
+- **ASS Subtitles**: Viral-style animated subtitles with:
+  - Random font selection
+  - Color-changing text at punctuation marks
+  - Timed word-level precision
+  - Title inclusion options
+- **Embedded Subtitles**: Burn subtitles directly into video for immediate sharing
+
+### **Key Features:**
+- 🤖 **Multi-AI Support**: Choose between OpenAI, DeepSeek, or local LMStudio
+- 📦 **Batch Processing**: Process hundreds of stories with OpenAI's cost-effective batch API
+- 🎙️ **Voice Cloning**: Natural-sounding narration using your reference voice using F5-tts
+- 🎬 **Smart Video Handling**: Automatic background video selection and optimization
+- 📝 **Professional Subtitles**: Both standard and viral-style animated formats
+- ⚡ **Hardware Acceleration**: GPU support for faster video processing
+- 🔧 **Plug-and-Play**: One-time setup with persistent configuration
+
+---
+
+## 📋 Dependencies
+
+### **System Requirements**
+- **Python**: 3.8 or higher
+- **FFmpeg**: Required for video processing
+- **RAM**: Minimum 8GB (16GB recommended for batch processing)
+- **GPU**: Optional but recommended (AMD/NVIDIA with proper drivers)
+- **Storage**: Sufficient space for videos and output files
+
+### **Core Python Dependencies**
+```
+moviepy==1.0.3          # Video processing and manipulation
+openai                  # OpenAI API client
+lmstudio                # LMStudio local AI integration
+python-dotenv           # Environment variable management
+tqdm                    # Progress bars for better UX
+openai-whisper          # For transcription/subtitle generation
+f5-tts                  # Advanced text-to-speech synthesis
 ```
 
-### External Tools
-- **F5-TTS**: For voice synthesis
-  ```bash
-  pip install f5-tts
-  ```
-- **FFmpeg**: For video processing
-  - Ubuntu/Debian: `sudo apt install ffmpeg`
-  - Windows: Download from [ffmpeg.org](https://ffmpeg.org)
-  - macOS: `brew install ffmpeg`
+### **External Tools**
+- **FFmpeg**: Essential for video processing and encoding
+- **F5-TTS**: Advanced text-to-speech with voice cloning capabilities 
 
-## 🚀 Installation
+---
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/Brain Rot-pipeline.git
-   cd Brain Rot-pipeline
-   ```
+## 🚀 Which Dependencies to Choose and How to Install Them
 
-2. **Install Python dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### **1. Essential Setup (Required for Basic Functionality)**
 
-3. **Install F5-TTS for voice synthesis**
-   ```bash
-   pip install f5-tts
-   ```
+#### **Install Python Dependencies**
+```bash
+# Install core requirements
+pip install moviepy==1.0.3 openai lmstudio python-dotenv tqdm
 
-4. **Prepare required files**
-   - Create `System_Title_Prompt.txt` - Instructions for title generation
-   - Create `Story_System_Prompt.txt` - Instructions for story generation
-   - Add `ref_audio.mp3` - Reference audio for voice cloning
-   - Add `ref_txt.txt` - Text transcript of reference audio
-   - Create `Videos/` folder with background videos
+# Or use requirements.txt if available
+pip install -r requirements.txt
+```
 
-## ⚙️ Configuration
+#### **Install FFmpeg**
+- **Ubuntu/Debian**: `sudo apt update && sudo apt install ffmpeg`
+- **Windows**: Download from [ffmpeg.org](https://ffmpeg.org) and add to PATH
+- **macOS**: `brew install ffmpeg`
+- **Verify installation**: `ffmpeg -version`
 
-### First-Time Setup
+### **2. AI Provider Setup (Choose At Least One)**
 
-The pipeline uses a configuration wizard on first run. Configuration is saved in:
-- `~/.Brain Rot_pipeline/config.json` - Non-sensitive settings
-- `~/.Brain Rot_pipeline/secrets.json` - API keys (encrypted permissions)
+#### **Option A: OpenAI (Recommended for Quality)**
+- **Pros**: Highest quality stories, batch processing available, most reliable
+- **Cons**: Costs money per API call
+- **Setup**: Get API key from [platform.openai.com](https://platform.openai.com)
+- **Models**: `gpt-4o-mini` (cost-effective), `gpt-4o` (premium quality)
 
-### Required Configuration Fields
+#### **Option B: DeepSeek (Budget-Friendly)**
+- **Pros**: Very cost-effective, good quality, faster than OpenAI
+- **Cons**: No batch processing, newer service
+- **Setup**: Get API key from [deepseek.com](https://deepseek.com)
+- **Models**: `deepseek-chat` (recommended)
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| **videos_path** | Folder containing background videos | `/home/user/Videos` |
-| **output_path** | Where to save generated content | `/home/user/DaVinci Vids` |
-| **title_prompt_path** | System prompt for titles | `System_Title_Prompt.txt` |
-| **story_prompt_path** | System prompt for stories | `Story_System_Prompt.txt` |
-| **ref_audio_path** | Reference audio for voice cloning | `ref_audio.mp3` |
-| **ref_text_path** | Reference text file | `ref_txt.txt` |
+#### **Option C: LMStudio (Free/Local)**
+- **Pros**: Completely free, runs locally, no API limits
+- **Cons**: Requires powerful hardware, slower processing, setup complexity
+- **Setup**: Download from [lmstudio.ai](https://lmstudio.ai)
+- **Requirements**: 16GB+ RAM, decent GPU recommended
+- **Models**: Any compatible model (Llama, Mistral, etc.)
 
-### Optional Configuration Fields
+### **3. Audio Processing Setup**
 
-| Field | Description | Required When |
-|-------|-------------|---------------|
-| **fonts_dir** | Custom fonts for subtitles | Using ASS subtitles |
-| **openai_model_id** | OpenAI model name | OpenAI API key is set |
-| **deepseek_model_name** | DeepSeek model | DeepSeek API key is set |
-| **lmstudio_model_name** | LMStudio model | Using LMStudio |
+#### **F5-TTS Installation (Recommended)**
+```bash
+# Install F5-TTS for voice cloning
+pip install f5-tts
 
-### AI Provider Requirements
+# Verify installation
+python -c "import f5_tts; print('F5-TTS installed successfully')"
+```
 
-**At least ONE AI provider must be configured:**
+#### **Prepare Audio References**
+- **Reference Audio**: `ref_audio.mp3` - 12 seconds of clear speech
+- **Reference Text**: `ref_txt.txt` - Exact transcript of the reference audio. (Will Automatically generate the transcription if not provided)
+- **Quality Tips**: Use clear, noise-free audio for best voice cloning results
 
-1. **OpenAI**
-   - API Key: `FINE_TUNED_FOR_STORIES`
-   - Model ID: `openai_model_id`
+### **4. Subtitle Generation Setup (Optional)**
 
-2. **DeepSeek**
-   - API Key: `DEEPSEEK_API_KEY`
+#### **Install Whisper for Transcription**
+```bash
+# Install OpenAI Whisper
+pip install openai-whisper
 
-3. **LMStudio**
-   - Model Name: `lmstudio_model_name`
+# Verify installation
+whisper --help
+```
 
-## 🤖 AI Provider Setup
+#### **Custom Fonts Setup (Optional)**
+- Create a fonts directory with TTF/OTF font files
+- Fonts will be randomly selected for ASS subtitle styling
+- Leave empty to use system default fonts
+- Change Font name to what you searched while downloading the TTF file on the internet
 
-### OpenAI Setup
-1. Get API key from [platform.openai.com](https://platform.openai.com)
-2. Enter key during configuration
-3. Choose between:
-   - **Sequential API**: Faster for small batches
-   - **Batch API**: Cost-effective for large batches (up to 24 hours)
+### **5. Complete Installation Example**
+```bash
 
-### DeepSeek Setup
-1. Get API key from [deepseek.com](https://deepseek.com)
-2. Enter key during configuration
-3. Uses sequential processing only
+MAKE SURE TO PROPERLY INSTALL f5-tts depending on your SYSTEM
 
-### LMStudio Setup
-1. Download LMStudio from [lmstudio.ai](https://lmstudio.ai)
-2. Download a compatible model
-3. Enter model name during configuration
-4. The pipeline auto-starts/stops the server
+```
 
-## 📖 Usage
 
-### Basic Usage
 
 ```bash
+# 1. Clone the repository
+git clone https://github.com/Ishit-Parikh/AI-Reddit-BrainRot.git
+cd GenAI-BrainRot
+
+# 2. Install all dependencies
+pip install moviepy==1.0.3 openai lmstudio python-dotenv tqdm
+pip install openai-whisper
+
+# 3. Install FFmpeg (Ubuntu example)
+sudo apt update && sudo apt install ffmpeg
+
+# 4. Prepare required files
+mkdir Videos                    # Background videos folder
+touch System_Title_Prompt.txt   # Title generation instructions
+touch Story_System_Prompt.txt   # Story generation instructions
+touch ref_audio.mp3            # Reference audio for voice cloning
+touch ref_txt.txt              # Transcript of reference audio
+
+# 5. Run the pipeline
 python main.py
 ```
 
-The pipeline will:
-1. Load saved configuration (or run setup wizard)
-2. Let you select AI provider (if multiple configured)
-3. Ask for number of stories
-4. Process stories → audio → video → subtitles
+### **6. Dependency Installation Tips**
 
-### Processing Modes
+#### **For Windows Users:**
+```bash
+# Use Command Prompt or PowerShell as Administrator
+pip install --upgrade pip
+pip install moviepy==1.0.3 openai lmstudio python-dotenv tqdm openai-whisper 
 
-1. **Bulk Mode** (Recommended for multiple stories)
-   - Generates all stories first
-   - Then processes all audio
-   - Then creates all videos
-   - Finally adds subtitles
-   - More efficient resource usage
-
-2. **Legacy Mode** (One story at a time)
-   - Completes each story fully before starting next
-   - Good for testing single stories
-
-### Transcription Options
-
-1. **SRT Only**: Basic subtitles
-2. **SRT + Embedded**: Subtitles burned into video
-3. **ASS + Embedded**: Viral-style animated subtitles
-4. **Skip**: No subtitles
-
-### Title Options
-
-- **Custom Titles**: Provide your own titles
-- **AI Generated**: Let the AI create titles
-- **Title in Subtitles**: Choose whether to include title in ASS files
-
-## ⚡ Batch Processing
-
-### OpenAI Batch API
-
-When using OpenAI with batch processing:
-
-```
-⚠️ WARNING: Batch processing can take up to 24 HOURS!
-   However, it's more cost-effective for large batches.
-   You can close this program and results will be saved.
+# Install FFmpeg using chocolatey (if available)
+choco install ffmpeg
 ```
 
-### How Batch Processing Works
+#### **For macOS Users:**
+```bash
+# Using Homebrew (recommended)
+brew install python ffmpeg
+pip3 install moviepy==1.0.3 openai lmstudio python-dotenv tqdm openai-whisper 
+```
 
-1. **Phase 1**: Generate all titles (if needed)
-2. **Phase 2**: Generate all stories based on titles
-3. **Automatic polling**: Checks status every 60 seconds
-4. **Persistent state**: Can resume if interrupted
+#### **For GPU Acceleration:**
+- **NVIDIA**: Ensure CUDA drivers are installed
+- **AMD**: Ensure VAAPI drivers are installed
+- The pipeline automatically detects and uses hardware acceleration when available
 
-### Batch Processing Benefits
-- 50% cost reduction compared to sequential
-- Process hundreds of stories in one batch
-- Automatic retry on failures
-- Progress tracking
+---
 
-## 📁 Output Structure
+## 📁 Output
 
-Each generated story creates a folder with:
+### **Demo Video**
+https://github.com/Ishit-Parikh/AI-Reddit-BrainRot/raw/main/README%20ASSETS/gene_video.mp4
+
+### **Generated File Structure**
+Each story creates a dedicated folder with the following structure:
 
 ```
-Story_Title/
-├── title.txt          # Story title
-├── story.txt          # Generated story text
-├── gene_audio.wav     # AI-generated narration
-├── gene_video.mp4     # Final video with/without subtitles
-├── subtitles.srt      # Standard subtitles (always created)
-├── subtitles.ass      # Viral-style subtitles (if selected)
-└── speed_info.json    # Video speed information
+Output_Directory/
+└── Story_Title_Here/
+    ├── title.txt              # Generated or custom title
+    ├── story.txt              # AI-generated story content
+    ├── gene_audio.wav         # AI-generated audio narration
+    ├── gene_video.mp4         # Final video (with embedded subtitles if selected)
+    ├── subtitles.srt          # Standard subtitle file (always created)
+    ├── subtitles.ass          # Animated subtitle file (if ASS option selected)
+    └── speed_info.json        # Video processing metadata
 ```
+
+### **File Descriptions**
+
+#### **Text Files**
+- **`title.txt`**: Contains the story title (AI-generated or user-provided)
+- **`story.txt`**: The complete AI-generated story text used for narration
+
+#### **Audio Files**
+- **`gene_audio.wav`**: High-quality audio narration generated using F5-TTS
+  - Format: WAV, 44.1kHz sample rate
+  - Voice-cloned using your reference audio
+  - Duration varies based on story length
+
+#### **Video Files**
+- **`gene_video.mp4`**: Final processed video file
+  - Format: MP4 with H.264 encoding
+  - Resolution: Matches source background videos
+  - Audio: Synchronized with generated narration
+  - Subtitles: Embedded if subtitle options were selected
+
+#### **Subtitle Files**
+- **`subtitles.srt`**: Standard subtitle format
+  - Compatible with all video players
+  - Always includes story title at the beginning (00:00:00 - 00:00:03)
+  - Word-level timing for better readability
+  
+- **`subtitles.ass`**: Advanced subtitle format (if selected)
+  - Viral-style animated subtitles
+  - Random font selection from custom font directory
+  - Color changes at punctuation marks for visual appeal
+  - Optional title inclusion based on user preference
+
+#### **Metadata Files**
+- **`speed_info.json`**: Contains video processing information
+  - Original video duration
+  - Audio duration
+  - Speed adjustment factor
+  - Processing timestamps
+
+### **Output Quality**
+- **Videos**: Full HD (1080p) when possible, matches source quality
+- **Audio**: 44.1kHz WAV for maximum quality
+- **Subtitles**: Word-level timing precision for professional appearance
+
+### **Storage Requirements**
+- **Per Story**: Approximately 50-200MB depending on video length
+- **Bulk Processing**: Plan for several GB when generating multiple stories
+- **Background Videos**: Store in separate directory, reused across stories
+
+### **File Management Tips**
+- Output folders are automatically organized by story title
+- Duplicate titles get numbered suffixes (Story_Title_2, Story_Title_3, etc.)
+- All files can be safely moved or renamed after generation
+- SRT files work with any video player for subtitle support
+
+---
+
+## ⚙️ First-Time Configuration
+
+On first run, the pipeline guides you through a one-time setup wizard:
+
+1. **Folder Paths**: Videos directory, output location
+2. **System Prompts**: Instructions for AI story generation
+3. **Audio References**: Voice cloning files
+4. **AI Providers**: At least one API key required
+5. **Optional Settings**: Custom fonts, model preferences
+
+Configuration is saved securely and persists across runs. Use the update wizard anytime to modify settings.
+
+---
 
 ## 🔧 Troubleshooting
 
-### Common Issues
+### **Common Issues**
+- **"No API keys configured"**: Run setup wizard, ensure at least one AI provider
+- **"FFmpeg not found"**: Install FFmpeg and restart terminal
+- **Audio generation fails**: Check F5-TTS installation and reference files
+- **GPU acceleration disabled**: Install proper drivers, falls back to CPU automatically
 
-1. **"No API keys configured"**
-   - Run configuration setup
-   - Ensure at least one AI provider is configured
-
-2. **"FFmpeg not found"**
-   - Install FFmpeg and add to PATH
-   - Restart terminal after installation
-
-3. **"VAAPI/NVENC failed"**
-   - Falls back to CPU encoding automatically
-   - Check GPU drivers are installed
-
-4. **Batch processing stuck**
-   - Check job ID in console
-   - Can take up to 24 hours
-   - Program can be safely closed and restarted
-
-### Configuration Reset
-
-To reset all settings:
+### **Reset Configuration**
 ```bash
-rm -rf ~/.Brain Rot_pipeline
+rm -rf ~/.brainrot_pipeline
+python main.py  # Reconfigure from scratch
 ```
 
-Then run the program to reconfigure.
+---
 
-## 🎥 Video Organization Tips
-
-### Flat Structure
-```
-Videos/
-├── video1.mp4
-├── video2.mp4
-└── video3.mp4
-```
-
-### Organized Structure (Recommended)
-```
-Videos/
-├── Nature/
-│   ├── forest.mp4
-│   └── ocean.mp4
-├── City/
-│   ├── tokyo.mp4
-│   └── nyc.mp4
-└── Abstract/
-    ├── particles.mp4
-    └── fractals.mp4
-```
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 🐛 Reporting Issues
-
-Please report bugs and issues on the GitHub repository with:
-- Error messages
-- Configuration details (without API keys)
-- System information
+🎬 **Ready to create viral content? Run `python main.py` to get started!**
