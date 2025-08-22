@@ -114,13 +114,6 @@ pip install -r requirements.txt
 
 #### **F5-TTS Installation (Recommended)**
 Install [F5-TTS](https://github.com/SWivid/F5-TTS) for advanced voice cloning capabilities:
-```bash
-# Install F5-TTS for voice cloning
-pip install f5-tts
-
-# Verify installation
-python -c "import f5_tts; print('F5-TTS installed successfully')"
-```
 
 #### **Prepare Audio References**
 - **Reference Audio**: `ref_audio.mp3` - 12 seconds of clear speech
