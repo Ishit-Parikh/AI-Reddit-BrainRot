@@ -204,10 +204,7 @@ pip3 install moviepy==1.0.3 openai lmstudio python-dotenv tqdm openai-whisper
 ## 📁 Output
 
 ### **Demo Video**
-  <video width="600" controls>
-    <source src="https://github.com/Ishit-Parikh/AI-Reddit-BrainRot/raw/main/README%20ASSETS/gene_video.mp4" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
+[🎬 Watch Demo Video](https://github.com/Ishit-Parikh/AI-Reddit-BrainRot/raw/main/README%20ASSETS/gene_video.mp4)
 
 ### **Generated File Structure**
 Each story creates a dedicated folder with the following structure:
