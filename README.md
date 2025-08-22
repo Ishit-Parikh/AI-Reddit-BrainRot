@@ -14,7 +14,7 @@ BrainRot is a comprehensive content generation pipeline that automates the entir
 - Batch processing available for generating hundreds of stories at once
 
 ### **Phase 2: Audio Narration**
-- Converts generated stories into natural-sounding speech using F5-TTS
+- Converts generated stories into natural-sounding speech using [F5-TTS](https://github.com/SWivid/F5-TTS)
 - Voice cloning capability using your own reference audio
 - Produces high-quality WAV audio files for video integration
 
@@ -36,7 +36,7 @@ BrainRot is a comprehensive content generation pipeline that automates the entir
 ### **Key Features:**
 - 🤖 **Multi-AI Support**: Choose between OpenAI, DeepSeek, or local LMStudio
 - 📦 **Batch Processing**: Process hundreds of stories with OpenAI's cost-effective batch API
-- 🎙️ **Voice Cloning**: Natural-sounding narration using your reference voice using F5-tts
+- 🎙️ **Voice Cloning**: Natural-sounding narration using your reference voice using [F5-TTS](https://github.com/SWivid/F5-TTS)
 - 🎬 **Smart Video Handling**: Automatic background video selection and optimization
 - 📝 **Professional Subtitles**: Both standard and viral-style animated formats
 - ⚡ **Hardware Acceleration**: GPU support for faster video processing
@@ -61,12 +61,12 @@ lmstudio                # LMStudio local AI integration
 python-dotenv           # Environment variable management
 tqdm                    # Progress bars for better UX
 openai-whisper          # For transcription/subtitle generation
-f5-tts                  # Advanced text-to-speech synthesis
+f5-tts                  # Advanced text-to-speech synthesis (https://github.com/SWivid/F5-TTS)
 ```
 
 ### **External Tools**
 - **FFmpeg**: Essential for video processing and encoding
-- **F5-TTS**: Advanced text-to-speech with voice cloning capabilities 
+- **[F5-TTS](https://github.com/SWivid/F5-TTS)**: Advanced text-to-speech with voice cloning capabilities 
 
 ---
 
@@ -113,6 +113,7 @@ pip install -r requirements.txt
 ### **3. Audio Processing Setup**
 
 #### **F5-TTS Installation (Recommended)**
+Install [F5-TTS](https://github.com/SWivid/F5-TTS) for advanced voice cloning capabilities:
 ```bash
 # Install F5-TTS for voice cloning
 pip install f5-tts
@@ -146,7 +147,7 @@ whisper --help
 ### **5. Complete Installation Example**
 ```bash
 
-MAKE SURE TO PROPERLY INSTALL f5-tts depending on your SYSTEM
+MAKE SURE TO PROPERLY INSTALL [F5-TTS](https://github.com/SWivid/F5-TTS) depending on your SYSTEM
 
 ```
 
@@ -228,7 +229,7 @@ Output_Directory/
 - **`story.txt`**: The complete AI-generated story text used for narration
 
 #### **Audio Files**
-- **`gene_audio.wav`**: High-quality audio narration generated using F5-TTS
+- **`gene_audio.wav`**: High-quality audio narration generated using [F5-TTS](https://github.com/SWivid/F5-TTS)
   - Format: WAV, 44.1kHz sample rate
   - Voice-cloned using your reference audio
   - Duration varies based on story length
@@ -296,7 +297,7 @@ Configuration is saved securely and persists across runs. Use the update wizard 
 ### **Common Issues**
 - **"No API keys configured"**: Run setup wizard, ensure at least one AI provider
 - **"FFmpeg not found"**: Install FFmpeg and restart terminal
-- **Audio generation fails**: Check F5-TTS installation and reference files
+- **Audio generation fails**: Check [F5-TTS](https://github.com/SWivid/F5-TTS) installation and reference files
 - **GPU acceleration disabled**: Install proper drivers, falls back to CPU automatically
 
 ### **Reset Configuration**
